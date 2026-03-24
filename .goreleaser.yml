@@ -1,0 +1,45 @@
+version: 2
+
+project_name: metorial
+
+before:
+  hooks:
+    - go mod tidy
+    - go test ./...
+
+builds:
+  - id: metorial
+    main: ./cmd/metorial
+    binary: metorial
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w
+      - -X github.com/metorial/cli/internal/version.Version={{ .Version }}
+      - -X github.com/metorial/cli/internal/version.Commit={{ .Commit }}
+      - -X github.com/metorial/cli/internal/version.Date={{ .Date }}
+    goos:
+      - darwin
+      - linux
+      - windows
+    goarch:
+      - amd64
+      - arm64
+
+archives:
+  - id: default
+    builds:
+      - metorial
+    formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  sort: asc
+  use: git
