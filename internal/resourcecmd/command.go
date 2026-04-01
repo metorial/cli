@@ -18,6 +18,7 @@ func NewResourceCommand(resource ResourceSpec, builder OperationBuilder) (*cobra
 		Use:     resource.DefaultUse(),
 		Aliases: resource.CobraAliases(),
 		Short:   resource.Short,
+		Long:    resource.Long,
 	}
 
 	for _, operation := range resource.Operations {

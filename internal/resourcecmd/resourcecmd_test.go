@@ -20,20 +20,20 @@ func TestResourceSpecNames(t *testing.T) {
 	}
 }
 
-func TestPublicResourcePlanContainsProviderConfigs(t *testing.T) {
+func TestPublicResourcePlanContainsConfigs(t *testing.T) {
 	t.Parallel()
 
 	found := false
 	for _, group := range PublicResourcePlan() {
 		for _, resource := range group.Resources {
-			if resource.Plural == "provider-configs" && resource.Singular == "provider-config" {
+			if resource.Plural == "configs" && resource.Singular == "config" && resource.PathPlural == "provider-configs" {
 				found = true
 			}
 		}
 	}
 
 	if !found {
-		t.Fatalf("PublicResourcePlan() missing provider-configs resource")
+		t.Fatalf("PublicResourcePlan() missing configs resource")
 	}
 }
 

@@ -30,10 +30,13 @@ const (
 	FlagInt         FlagType = "int"
 	FlagFloat       FlagType = "float"
 	FlagStringSlice FlagType = "string-slice"
+	FlagJSON        FlagType = "json"
+	FlagJSONFile    FlagType = "json-file"
 )
 
 type ArgumentSpec struct {
 	Name        string
+	Target      string
 	Required    bool
 	Description string
 }
@@ -52,8 +55,11 @@ type OperationSpec struct {
 	Name       OperationName
 	Use        string
 	Short      string
+	Long       string
 	Args       []ArgumentSpec
 	Flags      []FlagSpec
+	Examples   []string
+	SeeAlso    []string
 	SDKMapping string
 }
 
@@ -61,6 +67,8 @@ type ResourceSpec struct {
 	Plural     string
 	Singular   string
 	Short      string
+	Long       string
+	PathPlural string
 	Operations []OperationSpec
 	Aliases    []string
 }
@@ -114,6 +122,14 @@ func (r ResourceSpec) CobraAliases() []string {
 }
 
 func (r ResourceSpec) DefaultUse() string {
+	return r.Plural
+}
+
+func (r ResourceSpec) APIPathPlural() string {
+	if strings.TrimSpace(r.PathPlural) != "" {
+		return strings.TrimSpace(r.PathPlural)
+	}
+
 	return r.Plural
 }
 
