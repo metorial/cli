@@ -10,7 +10,6 @@ import (
 	"io"
 	"regexp"
 	"strings"
-	"text/tabwriter"
 	"time"
 
 	"github.com/metorial/cli/internal/app"
@@ -34,6 +33,7 @@ type rootOptions struct {
 }
 
 var slugPattern = regexp.MustCompile(`[^a-z0-9]+`)
+var helpColors = terminal.Colorizer{}
 
 const (
 	commandCategoryGeneral  = "general"
@@ -61,6 +61,8 @@ func newRootCommand(application *app.App) (*cobra.Command, error) {
 
 	cobra.AddTemplateFunc("renderCommandSection", renderCommandSection)
 	cobra.AddTemplateFunc("hasCommandCategory", hasCommandCategory)
+	cobra.AddTemplateFunc("commandAnnotation", commandAnnotation)
+	cobra.AddTemplateFunc("helpHeading", helpHeading)
 
 	store, err := config.OpenStore()
 	if err != nil {
@@ -71,6 +73,8 @@ func newRootCommand(application *app.App) (*cobra.Command, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	helpColors = terminal.NewColorizer(application.StdoutFeatures())
 
 	command := &cobra.Command{
 		Use:           "metorial",
@@ -103,11 +107,15 @@ func newRootCommand(application *app.App) (*cobra.Command, error) {
 	command.AddCommand(newLogoutCommand())
 	command.AddCommand(newInstanceCommand(application, options))
 	command.AddCommand(newProfileCommand(application, options))
-	command.AddCommand(newSettingsCommand())
+	command.AddCommand(newExampleCommand(application, options))
+	command.AddCommand(newSettingsCommand(application, options))
 	command.AddCommand(newFetchCommand(application, options))
 	command.AddCommand(newCompletionCommand(command.OutOrStdout()))
 
 	if err := addPublicResourceCommands(command, application, options, resourcecmd.PublicResourcePlan()); err != nil {
+		return nil, err
+	}
+	if err := addSessionResourceCommands(command, application, options); err != nil {
 		return nil, err
 	}
 
@@ -265,13 +273,27 @@ func newProfileCommand(application *app.App, rootOptions *rootOptions) *cobra.Co
 			}
 
 			currentProfile, _ := store.CurrentProfile()
+			colors := terminal.NewColorizer(application.StdoutFeatures())
+			_, _ = fmt.Fprintln(command.OutOrStdout(), colors.Bold("Saved Profiles"))
+			_, _ = fmt.Fprintln(command.OutOrStdout(), colors.Muted("These are the profiles you are currently logged in with."))
+			_, _ = fmt.Fprintln(command.OutOrStdout())
 
-			writer := tabwriter.NewWriter(command.OutOrStdout(), 0, 0, 2, ' ', 0)
-			_, _ = fmt.Fprintln(writer, "CURRENT\tID\tNAME\tORGANIZATION\tUSER\tAPI HOST\tEXPIRES")
+			table := output.Table{
+				Columns: []string{
+					colors.Accent("Status"),
+					colors.Accent("Profile"),
+					colors.Accent("Organization"),
+					colors.Accent("User"),
+					colors.Accent("API Host"),
+					colors.Accent("Expires"),
+				},
+				Features: application.StdoutFeatures(),
+				MaxWidth: application.StdoutFeatures().Width,
+			}
 			for _, profile := range profiles {
-				marker := ""
+				status := colors.Muted("Saved")
 				if currentProfile != nil && currentProfile.ID == profile.ID {
-					marker = "*"
+					status = colors.Success("Active")
 				}
 
 				expires := "never"
@@ -283,25 +305,65 @@ func newProfileCommand(application *app.App, rootOptions *rootOptions) *cobra.Co
 				orgLabel := firstNonEmpty(profile.OrgName, profile.OrgID)
 				apiHost := firstNonEmpty(profile.APIHost, store.Settings().DefaultAPIHost, config.DefaultAPIHost)
 
-				_, _ = fmt.Fprintf(
-					writer,
-					"%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
-					marker,
-					profile.ID,
-					profile.Name,
+				name := profile.Name
+				if currentProfile != nil && currentProfile.ID == profile.ID {
+					name = colors.Bold(profile.Name)
+				}
+
+				table.Rows = append(table.Rows, []string{
+					status,
+					name,
 					orgLabel,
 					userLabel,
 					apiHost,
 					expires,
-				)
+				})
 			}
 
-			return writer.Flush()
+			if err := table.Render(command.OutOrStdout()); err != nil {
+				return err
+			}
+
+			_, _ = fmt.Fprintln(command.OutOrStdout())
+			_, _ = fmt.Fprintf(command.OutOrStdout(), "%s `metorial profile set %s`\n", colors.Notice("Switch to a different profile with"), profiles[0].Name)
+			return nil
 		},
 	})
 
 	command.AddCommand(&cobra.Command{
-		Use:   "set <profile-id>",
+		Use:   "get <profile-name-or-id>",
+		Short: "Show a saved profile",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(command *cobra.Command, args []string) error {
+			store, err := config.OpenStore()
+			if err != nil {
+				return err
+			}
+
+			profile, err := findProfile(store, args[0])
+			if err != nil {
+				return err
+			}
+
+			_, _ = fmt.Fprintln(command.OutOrStdout(), "This is one of the profiles you are currently logged in with.")
+			_, _ = fmt.Fprintln(command.OutOrStdout())
+			_, _ = fmt.Fprintf(command.OutOrStdout(), "Name: %s\n", profile.Name)
+			_, _ = fmt.Fprintf(command.OutOrStdout(), "Organization: %s\n", firstNonEmpty(profile.OrgName, profile.OrgID))
+			_, _ = fmt.Fprintf(command.OutOrStdout(), "User: %s\n", firstNonEmpty(profile.UserEmail, profile.UserName, profile.UserID))
+			_, _ = fmt.Fprintf(command.OutOrStdout(), "API host: %s\n", firstNonEmpty(profile.APIHost, store.Settings().DefaultAPIHost, config.DefaultAPIHost))
+			if profile.ExpiresAt.IsZero() {
+				_, _ = fmt.Fprintln(command.OutOrStdout(), "Expires: never")
+			} else {
+				_, _ = fmt.Fprintf(command.OutOrStdout(), "Expires: %s\n", profile.ExpiresAt.Local().Format("2006-01-02 15:04"))
+			}
+			_, _ = fmt.Fprintln(command.OutOrStdout())
+			_, _ = fmt.Fprintf(command.OutOrStdout(), "Switch to this profile with `metorial profile set %s`.\n", profile.Name)
+			return nil
+		},
+	})
+
+	command.AddCommand(&cobra.Command{
+		Use:   "set <profile-name-or-id>",
 		Short: "Set the current profile",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(command *cobra.Command, args []string) error {
@@ -310,16 +372,21 @@ func newProfileCommand(application *app.App, rootOptions *rootOptions) *cobra.Co
 				return err
 			}
 
-			if _, ok := store.ProfileByID(args[0]); !ok {
-				return profileNotFoundError(args[0])
-			}
-
-			if err := store.SetCurrentProfile(args[0]); err != nil {
+			profile, err := findProfile(store, args[0])
+			if err != nil {
 				return err
 			}
 
-			profile, _ := store.ProfileByID(args[0])
-			_, _ = fmt.Fprintf(command.OutOrStdout(), "Current profile set to %s (%s).\n", profile.Name, profile.ID)
+			if err := store.SetCurrentProfile(profile.ID); err != nil {
+				return err
+			}
+
+			colors := terminal.NewColorizer(application.StdoutFeatures())
+			_, _ = fmt.Fprintln(command.OutOrStdout(), colors.Success("Profile Updated"))
+			_, _ = fmt.Fprintln(command.OutOrStdout())
+			_, _ = fmt.Fprintf(command.OutOrStdout(), "%s %s\n", colors.Notice("Active profile:"), colors.Bold(profile.Name))
+			_, _ = fmt.Fprintln(command.OutOrStdout())
+			_, _ = fmt.Fprintln(command.OutOrStdout(), colors.Muted("See what you can do next with `metorial --help`."))
 			return nil
 		},
 	})
@@ -380,6 +447,7 @@ Examples:
 				if err := output.WriteResponse(writer, response, output.RenderOptions{
 					Format:  format,
 					Include: options.Include,
+					Colors:  application.StdoutFeatures(),
 				}); err != nil {
 					return err
 				}
@@ -424,7 +492,7 @@ func newInstanceCommand(application *app.App, rootOptions *rootOptions) *cobra.C
 				return err
 			}
 
-			return writeValue(command.OutOrStdout(), rootOptions.format, result)
+			return writeValue(command.OutOrStdout(), application.StdoutFeatures(), rootOptions.format, result)
 		},
 	})
 
@@ -448,7 +516,7 @@ func newInstanceCommand(application *app.App, rootOptions *rootOptions) *cobra.C
 				return err
 			}
 
-			return writeValue(command.OutOrStdout(), rootOptions.format, result)
+			return writeValue(command.OutOrStdout(), application.StdoutFeatures(), rootOptions.format, result)
 		},
 	})
 
@@ -496,7 +564,7 @@ func newCompletionCommand(outputWriter io.Writer) *cobra.Command {
 	return command
 }
 
-func newSettingsCommand() *cobra.Command {
+func newSettingsCommand(application *app.App, rootOptions *rootOptions) *cobra.Command {
 	command := &cobra.Command{
 		Use:   "settings",
 		Short: "Manage global CLI settings",
@@ -511,12 +579,11 @@ func newSettingsCommand() *cobra.Command {
 				return err
 			}
 
-			defaultHost := firstNonEmpty(store.Settings().DefaultAPIHost, "(not set)")
-			defaultFormat := firstNonEmpty(store.Settings().DefaultFormat, string(output.FormatYAML))
-			_, _ = fmt.Fprintf(command.OutOrStdout(), "default_api_host: %s\n", defaultHost)
-			_, _ = fmt.Fprintf(command.OutOrStdout(), "default_format: %s\n", defaultFormat)
-			_, _ = fmt.Fprintf(command.OutOrStdout(), "config_path: %s\n", store.Path())
-			return nil
+			return writeValue(command.OutOrStdout(), application.StdoutFeatures(), rootOptions.format, map[string]any{
+				"object":           "settings",
+				"default_api_host": firstNonEmpty(store.Settings().DefaultAPIHost, "(not set)"),
+				"default_format":   firstNonEmpty(store.Settings().DefaultFormat, string(output.FormatStructured)),
+			})
 		},
 	})
 
@@ -545,8 +612,13 @@ func newSettingsCommand() *cobra.Command {
 					return err
 				}
 
-				_, _ = fmt.Fprintf(command.OutOrStdout(), "Default API host set to %s.\n", hostURL.String())
-				return nil
+				return writeValue(command.OutOrStdout(), application.StdoutFeatures(), rootOptions.format, map[string]any{
+					"object":      "settings.update",
+					"action":      "set",
+					"setting":     "default_api_host",
+					"value":       hostURL.String(),
+					"config_path": store.Path(),
+				})
 			case "default-format":
 				format, err := resolveDefaultOutputFormat(args[1])
 				if err != nil {
@@ -559,8 +631,13 @@ func newSettingsCommand() *cobra.Command {
 					return err
 				}
 
-				_, _ = fmt.Fprintf(command.OutOrStdout(), "Default format set to %s.\n", format)
-				return nil
+				return writeValue(command.OutOrStdout(), application.StdoutFeatures(), rootOptions.format, map[string]any{
+					"object":      "settings.update",
+					"action":      "set",
+					"setting":     "default_format",
+					"value":       format,
+					"config_path": store.Path(),
+				})
 			default:
 				return fmt.Errorf("metorial: unknown setting %q. Supported settings: default-api-host, default-format", args[0])
 			}
@@ -587,8 +664,13 @@ func newSettingsCommand() *cobra.Command {
 					return err
 				}
 
-				_, _ = fmt.Fprintln(command.OutOrStdout(), "Default API host cleared.")
-				return nil
+				return writeValue(command.OutOrStdout(), application.StdoutFeatures(), rootOptions.format, map[string]any{
+					"object":      "settings.update",
+					"action":      "unset",
+					"setting":     "default_api_host",
+					"value":       "(not set)",
+					"config_path": store.Path(),
+				})
 			case "default-format":
 				if err := store.UpdateSettings(func(settings *config.Settings) {
 					settings.DefaultFormat = ""
@@ -596,8 +678,13 @@ func newSettingsCommand() *cobra.Command {
 					return err
 				}
 
-				_, _ = fmt.Fprintln(command.OutOrStdout(), "Default format cleared.")
-				return nil
+				return writeValue(command.OutOrStdout(), application.StdoutFeatures(), rootOptions.format, map[string]any{
+					"object":      "settings.update",
+					"action":      "unset",
+					"setting":     "default_format",
+					"value":       string(output.FormatStructured),
+					"config_path": store.Path(),
+				})
 			default:
 				return fmt.Errorf("metorial: unknown setting %q. Supported settings: default-api-host, default-format", args[0])
 			}
@@ -639,25 +726,21 @@ func runLogin(command *cobra.Command, application *app.App, apiHostFlag string) 
 	}
 
 	client := auth.NewClient(apiHostURL)
+	stdoutFeatures := application.StdoutFeatures()
+	renderLoginWaitingScreenWithFeatures(command.OutOrStdout(), stdoutFeatures)
+	spinner := terminal.NewSpinner(command.OutOrStdout(), stdoutFeatures, "Preparing authentication...")
+	spinner.Start()
 	startResponse, err := client.StartCLIAuth()
+	spinner.Stop()
 	if err != nil {
 		return presentAuthError(err, "start login", "")
 	}
 
-	link := terminal.Link(startResponse.AuthorizationURL, startResponse.AuthorizationURL)
-
-	_, _ = fmt.Fprintln(command.OutOrStdout(), "Starting browser sign-in.")
-	if browser.Supported() {
-		if err := browser.Open(startResponse.AuthorizationURL); err == nil {
-			_, _ = fmt.Fprintln(command.OutOrStdout(), "Opened your browser automatically.")
-		} else {
-			_, _ = fmt.Fprintf(command.OutOrStdout(), "Could not open your browser automatically: %v\n", err)
-		}
+	browserOpenSupported := browser.Supported()
+	renderLoginAuthScreen(command.OutOrStdout(), stdoutFeatures, startResponse.AuthorizationURL, startResponse.UserCode, browserOpenSupported)
+	if browserOpenSupported {
+		_ = browser.Open(startResponse.AuthorizationURL)
 	}
-
-	_, _ = fmt.Fprintf(command.OutOrStdout(), "Open this URL if needed: %s\n", link)
-	_, _ = fmt.Fprintf(command.OutOrStdout(), "Verification code: %s\n", startResponse.UserCode)
-	_, _ = fmt.Fprintln(command.OutOrStdout(), "Waiting for sign-in to finish...")
 
 	interval := time.Duration(maxInt(startResponse.Interval, 1)) * time.Second
 	deadline := time.Now().Add(time.Duration(maxInt(startResponse.ExpiresIn, 1)) * time.Second)
@@ -678,9 +761,7 @@ func runLogin(command *cobra.Command, application *app.App, apiHostFlag string) 
 				return err
 			}
 
-			_, _ = fmt.Fprintf(command.OutOrStdout(), "Signed in as %s.\n", firstNonEmpty(profile.UserEmail, profile.UserName, profile.UserID))
-			_, _ = fmt.Fprintf(command.OutOrStdout(), "Current profile: %s (%s)\n", profile.Name, profile.ID)
-			_, _ = fmt.Fprintf(command.OutOrStdout(), "Organization: %s\n", firstNonEmpty(profile.OrgName, profile.OrgID))
+			renderLoginSuccess(command.OutOrStdout(), stdoutFeatures)
 			return nil
 		}
 
@@ -784,6 +865,34 @@ func profileNotFoundError(id string) error {
 	)
 }
 
+func findProfile(store *config.Store, value string) (*config.Profile, error) {
+	if profile, ok := store.ProfileByID(value); ok {
+		return profile, nil
+	}
+
+	normalized := strings.TrimSpace(value)
+	if normalized == "" {
+		return nil, profileNotFoundError(value)
+	}
+
+	var matched *config.Profile
+	for _, profile := range store.SortedProfiles() {
+		if profile.Name != normalized {
+			continue
+		}
+		if matched != nil {
+			return nil, fmt.Errorf("metorial: multiple profiles are named %q. Use the profile ID instead.", normalized)
+		}
+		matched = profile.Clone()
+	}
+
+	if matched != nil {
+		return matched, nil
+	}
+
+	return nil, profileNotFoundError(value)
+}
+
 func presentAuthError(err error, action string, hint string) error {
 	apiError := &auth.Error{}
 	if errors.As(err, &apiError) {
@@ -813,7 +922,7 @@ func withHint(message, hint string) error {
 	return fmt.Errorf("%s\n%s", message, hint)
 }
 
-func writeValue(writer io.Writer, formatInput string, value any) error {
+func writeValue(writer io.Writer, features terminal.Features, formatInput string, value any) error {
 	body, err := json.Marshal(value)
 	if err != nil {
 		return fmt.Errorf("metorial: failed to encode response: %w", err)
@@ -830,6 +939,7 @@ func writeValue(writer io.Writer, formatInput string, value any) error {
 		Body:       body,
 	}, output.RenderOptions{
 		Format: format,
+		Colors: features,
 	})
 }
 
@@ -874,52 +984,74 @@ func rootLongDescription() string {
 Metorial gives you a fast way to work with the Metorial API and platform.
 
 Use "metorial login" to sign in with OAuth, "metorial fetch" for raw
-authenticated API requests, "metorial profile" to manage saved profiles, and
-"metorial open" to launch the platform in a browser. Use --format yaml for the
-default human-readable output, --format toml or --format json for serialized
-output, or --format structured for tables and data lists.
+authenticated API requests, "metorial profile" to manage saved profiles,
+"metorial example" to clone official examples, and "metorial open" to launch
+the platform in a browser. Structured output is the default for readable
+terminal views, while --format yaml, --format toml, and --format json return
+full serialized records.
 `)
 }
 
 func helpTemplate() string {
 	return `{{with (or .Long .Short)}}{{.}}
 
-{{end}}Usage:
-  {{.UseLine}}
+{{end}}{{helpHeading "Usage:"}}
+  {{.UseLine}}{{if .HasAvailableSubCommands}}{{if hasCommandCategory .Commands "general"}}
 
-{{if .HasAvailableSubCommands}}{{if hasCommandCategory .Commands "general"}}Commands:
+{{helpHeading "Commands:"}}
 {{renderCommandSection .Commands "general"}}{{end}}{{if hasCommandCategory .Commands "resource"}}
-Resource Commands:
-{{renderCommandSection .Commands "resource"}}{{end}}{{end}}{{if .HasAvailableLocalFlags}}
-Flags:
+
+{{helpHeading "Resource Commands:"}}
+{{renderCommandSection .Commands "resource"}}{{end}}{{end}}{{if commandAnnotation . "metorial:arguments"}}
+
+{{helpHeading "Arguments:"}}
+{{commandAnnotation . "metorial:arguments"}}{{end}}{{if .HasAvailableLocalFlags}}
+
+{{helpHeading "Flags:"}}
 {{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}{{if .HasAvailableInheritedFlags}}
 
-Global Flags:
+{{helpHeading "Global Flags:"}}
 {{.InheritedFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}{{if .HasExample}}
 
-Examples:
-{{.Example}}{{end}}
+{{helpHeading "Examples:"}}
+{{.Example}}{{end}}{{if commandAnnotation . "metorial:see-also"}}
+
+{{helpHeading "See Also:"}}
+{{commandAnnotation . "metorial:see-also"}}{{end}}
 `
 }
 
 func usageTemplate() string {
-	return `Usage:
-  {{.UseLine}}
+	return `{{helpHeading "Usage:"}}
+  {{.UseLine}}{{if .HasAvailableSubCommands}}{{if hasCommandCategory .Commands "general"}}
 
-{{if .HasAvailableSubCommands}}{{if hasCommandCategory .Commands "general"}}Commands:
+{{helpHeading "Commands:"}}
 {{renderCommandSection .Commands "general"}}{{end}}{{if hasCommandCategory .Commands "resource"}}
-Resource Commands:
+
+{{helpHeading "Resource Commands:"}}
 {{renderCommandSection .Commands "resource"}}{{end}}{{end}}{{if .HasAvailableLocalFlags}}
-Flags:
+
+{{helpHeading "Flags:"}}
 {{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}{{if .HasAvailableInheritedFlags}}
 
-Global Flags:
+{{helpHeading "Global Flags:"}}
 {{.InheritedFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}
 `
 }
 
 func renderCommandSection(commands []*cobra.Command, category string) string {
 	var buffer bytes.Buffer
+	width := 0
+
+	for _, command := range commands {
+		if !command.IsAvailableCommand() || command.Hidden {
+			continue
+		}
+		if commandCategory(command) != category {
+			continue
+		}
+		width = maxInt(width, len(command.Name()))
+	}
 
 	for _, command := range commands {
 		if !command.IsAvailableCommand() || command.Hidden {
@@ -929,10 +1061,11 @@ func renderCommandSection(commands []*cobra.Command, category string) string {
 			continue
 		}
 
-		_, _ = fmt.Fprintf(&buffer, "  %-12s %s\n", command.Name(), command.Short)
+		padding := strings.Repeat(" ", width-len(command.Name()))
+		_, _ = fmt.Fprintf(&buffer, "  %s%s  %s\n", helpColors.Accent(command.Name()), padding, command.Short)
 	}
 
-	return buffer.String()
+	return strings.TrimRight(buffer.String(), "\n")
 }
 
 func hasCommandCategory(commands []*cobra.Command, category string) bool {
@@ -956,4 +1089,16 @@ func commandCategory(command *cobra.Command) string {
 	}
 
 	return commandCategoryGeneral
+}
+
+func commandAnnotation(command *cobra.Command, key string) string {
+	if command == nil || command.Annotations == nil {
+		return ""
+	}
+
+	return strings.TrimRight(command.Annotations[key], "\n")
+}
+
+func helpHeading(value string) string {
+	return helpColors.Bold(value)
 }

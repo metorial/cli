@@ -176,8 +176,7 @@ func (a *App) refreshProfileRuntime(apiHostFlag, profileID string, force bool) (
 
 	if strings.TrimSpace(profile.RefreshToken) == "" || strings.TrimSpace(profile.ClientID) == "" {
 		return config.Runtime{}, fmt.Errorf(
-			"metorial: the current profile %s cannot be refreshed because its saved login data is incomplete.\nRun \"metorial login\" to sign in again or \"metorial profiles list\" to switch profiles",
-			profile.ID,
+			"The current profile cannot be refreshed because it has expired.\nRun \"metorial login\" to sign in again or \"metorial profiles list\" to switch profiles.",
 		)
 	}
 
@@ -248,7 +247,15 @@ func (a *App) refreshProfileRuntime(apiHostFlag, profileID string, force bool) (
 }
 
 func (a *App) resolveInstance(runtime config.Runtime, instanceFlag string) (config.Runtime, error) {
-	if strings.TrimSpace(runtime.APIKey) == "" || !tokenNeedsInstanceHeader(runtime.APIKey) {
+	return a.resolveInstanceSelection(runtime, instanceFlag, tokenNeedsInstanceHeader(runtime.APIKey))
+}
+
+func (a *App) ResolveExampleInstance(runtime config.Runtime, instanceFlag string) (config.Runtime, error) {
+	return a.resolveInstanceSelection(runtime, instanceFlag, true)
+}
+
+func (a *App) resolveInstanceSelection(runtime config.Runtime, instanceFlag string, requireSelection bool) (config.Runtime, error) {
+	if strings.TrimSpace(runtime.APIKey) == "" {
 		return runtime, nil
 	}
 
@@ -266,6 +273,10 @@ func (a *App) resolveInstance(runtime config.Runtime, instanceFlag string) (conf
 				return preserveInstanceOnRefresh(runtime), nil
 			}
 		}
+	}
+
+	if !requireSelection {
+		return runtime, nil
 	}
 
 	sdk, err := runtime.BareSDK()

@@ -80,7 +80,7 @@ func TestBuildResourceTargetIncludesRepeatedQueryValues(t *testing.T) {
 		t.Fatalf("buildResourceTarget() error = %v", err)
 	}
 
-	if target != "/providers?id=prov_1&id=prov_2&limit=10" {
+	if target != "/provider-listings?id=prov_1&id=prov_2&limit=10" {
 		t.Fatalf("buildResourceTarget() = %q", target)
 	}
 }
@@ -98,7 +98,7 @@ func TestBuildResourceTargetAppliesDefaultListLimit(t *testing.T) {
 		t.Fatalf("buildResourceTarget() error = %v", err)
 	}
 
-	if target != "/providers?limit=5" {
+	if target != "/provider-listings?limit=5" {
 		t.Fatalf("buildResourceTarget() = %q", target)
 	}
 }
@@ -106,10 +106,10 @@ func TestBuildResourceTargetAppliesDefaultListLimit(t *testing.T) {
 func TestBuildResourceBodyMergesExplicitJSONAndFlags(t *testing.T) {
 	t.Parallel()
 
-	resource := resourcecmd.ProviderDeploymentsResource()
+	resource := resourcecmd.DeploymentsResource()
 	operation, ok := resource.Operation(resourcecmd.OperationCreate)
 	if !ok {
-		t.Fatalf("ProviderDeploymentsResource() missing create operation")
+		t.Fatalf("DeploymentsResource() missing create operation")
 	}
 
 	command, err := newPublicResourceAction(&app.App{}, &rootOptions{}, resource, operation)
@@ -120,14 +120,11 @@ func TestBuildResourceBodyMergesExplicitJSONAndFlags(t *testing.T) {
 	if err := command.Flags().Set("body", `{"metadata":{"team":"cli"}}`); err != nil {
 		t.Fatalf("Set(body) error = %v", err)
 	}
-	if err := command.Flags().Set("provider-id", "prov_123"); err != nil {
-		t.Fatalf("Set(provider-id) error = %v", err)
-	}
 	if err := command.Flags().Set("locked-provider-version-id", "ver_123"); err != nil {
 		t.Fatalf("Set(locked-provider-version-id) error = %v", err)
 	}
 
-	body, err := buildResourceBody(command, operation)
+	body, err := buildResourceBody(command, resource, operation, []string{"prov_123", "Production"})
 	if err != nil {
 		t.Fatalf("buildResourceBody() error = %v", err)
 	}
@@ -140,6 +137,9 @@ func TestBuildResourceBodyMergesExplicitJSONAndFlags(t *testing.T) {
 	}
 	if _, ok := body["metadata"]; !ok {
 		t.Fatalf("metadata missing from merged body: %#v", body)
+	}
+	if body["name"] != "Production" {
+		t.Fatalf("name = %#v", body["name"])
 	}
 }
 
@@ -164,5 +164,85 @@ func TestResourceOperationArgsRejectsExtraArguments(t *testing.T) {
 	err := resourceOperationArgs(operation)(nil, []string{"prov_1", "extra"})
 	if err == nil || !strings.Contains(err.Error(), "accepts at most 1 arg") {
 		t.Fatalf("resourceOperationArgs() error = %v", err)
+	}
+}
+
+func TestResourceOperationArgsRendersHelpOnMissingArgs(t *testing.T) {
+	t.Parallel()
+
+	stdout := &bytes.Buffer{}
+	command, err := newPublicResourceAction(&app.App{}, &rootOptions{}, resourcecmd.ActorsResource(), resourcecmd.ActorsResource().Operations[2])
+	if err != nil {
+		t.Fatalf("newPublicResourceAction() error = %v", err)
+	}
+	command.SetOut(stdout)
+	command.SetErr(&bytes.Buffer{})
+
+	err = command.Args(command, nil)
+	if err == nil {
+		t.Fatal("expected missing args error")
+	}
+
+	rendered := stdout.String()
+	if !strings.Contains(rendered, "Usage:\n") {
+		t.Fatalf("help output missing usage:\n%s", rendered)
+	}
+	if !strings.Contains(rendered, "Arguments:\n") {
+		t.Fatalf("help output missing arguments:\n%s", rendered)
+	}
+	if !strings.Contains(rendered, "type") || !strings.Contains(rendered, "name") {
+		t.Fatalf("help output missing expected args:\n%s", rendered)
+	}
+}
+
+func TestBuildResourceTargetUsesSnakeCaseQueryKeys(t *testing.T) {
+	t.Parallel()
+
+	resource := resourcecmd.AuthConfigsResource()
+	operation, ok := resource.Operation(resourcecmd.OperationList)
+	if !ok {
+		t.Fatalf("AuthConfigsResource() missing list operation")
+	}
+
+	command, err := newPublicResourceAction(&app.App{}, &rootOptions{}, resource, operation)
+	if err != nil {
+		t.Fatalf("newPublicResourceAction() error = %v", err)
+	}
+
+	if err := command.Flags().Set("provider-auth-method-id", "pam_123"); err != nil {
+		t.Fatalf("Set(provider-auth-method-id) error = %v", err)
+	}
+
+	target, err := buildResourceTarget(command, resource, operation, nil)
+	if err != nil {
+		t.Fatalf("buildResourceTarget() error = %v", err)
+	}
+
+	if !strings.Contains(target, "provider_auth_method_id=pam_123") {
+		t.Fatalf("buildResourceTarget() = %q", target)
+	}
+}
+
+func TestResourceCommandHelpIncludesArgumentsSection(t *testing.T) {
+	t.Parallel()
+
+	stdout := &bytes.Buffer{}
+	command, err := newPublicResourceAction(&app.App{Stdout: stdout, Stderr: &bytes.Buffer{}}, &rootOptions{}, resourcecmd.IdentitiesResource(), resourcecmd.IdentitiesResource().Operations[2])
+	if err != nil {
+		t.Fatalf("newPublicResourceAction() error = %v", err)
+	}
+	command.SetOut(stdout)
+	command.SetErr(&bytes.Buffer{})
+
+	if err := command.Help(); err != nil {
+		t.Fatalf("Help() error = %v", err)
+	}
+
+	rendered := stdout.String()
+	if !strings.Contains(rendered, "Arguments:\n") {
+		t.Fatalf("help output missing Arguments section:\n%s", rendered)
+	}
+	if !strings.Contains(rendered, "actor-id") {
+		t.Fatalf("help output missing actor-id argument:\n%s", rendered)
 	}
 }
