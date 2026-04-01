@@ -17,7 +17,7 @@ const (
 func ParseFormat(raw string) (Format, error) {
 	value := Format(strings.ToLower(strings.TrimSpace(raw)))
 	if value == "" {
-		return FormatYAML, nil
+		return FormatStructured, nil
 	}
 
 	switch value {
