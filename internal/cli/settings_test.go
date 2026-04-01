@@ -12,7 +12,7 @@ func TestNewRootCommandUsesSavedDefaultFormat(t *testing.T) {
 	homeDir := t.TempDir()
 	t.Setenv("HOME", homeDir)
 
-	settingsCommand := newSettingsCommand()
+	settingsCommand := newSettingsCommand(&app.App{Stdout: &bytes.Buffer{}, Stderr: &bytes.Buffer{}}, &rootOptions{format: "structured"})
 	settingsCommand.SetOut(&bytes.Buffer{})
 	settingsCommand.SetErr(&bytes.Buffer{})
 	settingsCommand.SetArgs([]string{"set", "default-format", "json"})
@@ -41,7 +41,7 @@ func TestSettingsListShowsDefaultFormat(t *testing.T) {
 	homeDir := t.TempDir()
 	t.Setenv("HOME", homeDir)
 
-	command := newSettingsCommand()
+	command := newSettingsCommand(&app.App{Stdout: &bytes.Buffer{}, Stderr: &bytes.Buffer{}}, &rootOptions{format: "structured"})
 	command.SetErr(&bytes.Buffer{})
 	command.SetOut(&bytes.Buffer{})
 	command.SetArgs([]string{"set", "default-format", "toml"})
@@ -50,7 +50,7 @@ func TestSettingsListShowsDefaultFormat(t *testing.T) {
 	}
 
 	stdout := &bytes.Buffer{}
-	command = newSettingsCommand()
+	command = newSettingsCommand(&app.App{Stdout: stdout, Stderr: &bytes.Buffer{}}, &rootOptions{format: "structured"})
 	command.SetOut(stdout)
 	command.SetErr(&bytes.Buffer{})
 	command.SetArgs([]string{"list"})
@@ -58,7 +58,7 @@ func TestSettingsListShowsDefaultFormat(t *testing.T) {
 		t.Fatalf("settings list error = %v", err)
 	}
 
-	if !strings.Contains(stdout.String(), "default_format: toml") {
+	if !strings.Contains(stdout.String(), "default_format = \"toml\"") {
 		t.Fatalf("settings list output = %q", stdout.String())
 	}
 }
@@ -67,7 +67,7 @@ func TestSettingsSetAcceptsUnderscoreNames(t *testing.T) {
 	homeDir := t.TempDir()
 	t.Setenv("HOME", homeDir)
 
-	command := newSettingsCommand()
+	command := newSettingsCommand(&app.App{Stdout: &bytes.Buffer{}, Stderr: &bytes.Buffer{}}, &rootOptions{format: "structured"})
 	command.SetOut(&bytes.Buffer{})
 	command.SetErr(&bytes.Buffer{})
 	command.SetArgs([]string{"set", "default_format", "json"})
@@ -76,7 +76,7 @@ func TestSettingsSetAcceptsUnderscoreNames(t *testing.T) {
 	}
 
 	stdout := &bytes.Buffer{}
-	command = newSettingsCommand()
+	command = newSettingsCommand(&app.App{Stdout: stdout, Stderr: &bytes.Buffer{}}, &rootOptions{format: "structured"})
 	command.SetOut(stdout)
 	command.SetErr(&bytes.Buffer{})
 	command.SetArgs([]string{"list"})
@@ -84,7 +84,7 @@ func TestSettingsSetAcceptsUnderscoreNames(t *testing.T) {
 		t.Fatalf("settings list error = %v", err)
 	}
 
-	if !strings.Contains(stdout.String(), "default_format: json") {
+	if !strings.Contains(stdout.String(), "default_format = \"json\"") {
 		t.Fatalf("settings list output = %q", stdout.String())
 	}
 }
