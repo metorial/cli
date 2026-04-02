@@ -36,8 +36,9 @@ var slugPattern = regexp.MustCompile(`[^a-z0-9]+`)
 var helpColors = terminal.Colorizer{}
 
 const (
-	commandCategoryGeneral  = "general"
-	commandCategoryResource = "resource"
+	commandCategoryGeneral      = "general"
+	commandCategoryIntegrations = "integrations"
+	commandCategoryResource     = "resource"
 )
 
 func Run() int {
@@ -60,6 +61,7 @@ func newRootCommand(application *app.App) (*cobra.Command, error) {
 	options := &rootOptions{}
 
 	cobra.AddTemplateFunc("renderCommandSection", renderCommandSection)
+	cobra.AddTemplateFunc("renderIntegrationSection", renderIntegrationSection)
 	cobra.AddTemplateFunc("hasCommandCategory", hasCommandCategory)
 	cobra.AddTemplateFunc("commandAnnotation", commandAnnotation)
 	cobra.AddTemplateFunc("helpHeading", helpHeading)
@@ -1000,7 +1002,10 @@ func helpTemplate() string {
   {{.UseLine}}{{if .HasAvailableSubCommands}}{{if hasCommandCategory .Commands "general"}}
 
 {{helpHeading "Commands:"}}
-{{renderCommandSection .Commands "general"}}{{end}}{{if hasCommandCategory .Commands "resource"}}
+{{renderCommandSection .Commands "general"}}{{end}}{{if hasCommandCategory .Commands "integrations"}}
+
+{{helpHeading "Integrations:"}}
+{{renderIntegrationSection .Commands}}{{end}}{{if hasCommandCategory .Commands "resource"}}
 
 {{helpHeading "Resource Commands:"}}
 {{renderCommandSection .Commands "resource"}}{{end}}{{end}}{{if commandAnnotation . "metorial:arguments"}}
@@ -1027,7 +1032,10 @@ func usageTemplate() string {
   {{.UseLine}}{{if .HasAvailableSubCommands}}{{if hasCommandCategory .Commands "general"}}
 
 {{helpHeading "Commands:"}}
-{{renderCommandSection .Commands "general"}}{{end}}{{if hasCommandCategory .Commands "resource"}}
+{{renderCommandSection .Commands "general"}}{{end}}{{if hasCommandCategory .Commands "integrations"}}
+
+{{helpHeading "Integrations:"}}
+{{renderIntegrationSection .Commands}}{{end}}{{if hasCommandCategory .Commands "resource"}}
 
 {{helpHeading "Resource Commands:"}}
 {{renderCommandSection .Commands "resource"}}{{end}}{{end}}{{if .HasAvailableLocalFlags}}
@@ -1064,6 +1072,48 @@ func renderCommandSection(commands []*cobra.Command, category string) string {
 
 		padding := strings.Repeat(" ", width-len(command.Name()))
 		_, _ = fmt.Fprintf(&buffer, "  %s%s  %s\n", helpColors.Accent(command.Name()), padding, command.Short)
+	}
+
+	return strings.TrimRight(buffer.String(), "\n")
+}
+
+func renderIntegrationSection(commands []*cobra.Command) string {
+	var buffer bytes.Buffer
+	width := 0
+
+	for _, command := range commands {
+		if !command.IsAvailableCommand() || command.Hidden {
+			continue
+		}
+		if commandCategory(command) != commandCategoryIntegrations {
+			continue
+		}
+		width = maxInt(width, len(command.Name()))
+	}
+
+	for _, command := range commands {
+		if !command.IsAvailableCommand() || command.Hidden {
+			continue
+		}
+		if commandCategory(command) != commandCategoryIntegrations {
+			continue
+		}
+
+		padding := strings.Repeat(" ", width-len(command.Name()))
+		_, _ = fmt.Fprintf(&buffer, "  %s%s  %s\n", helpColors.Accent(command.Name()), padding, command.Short)
+
+		summary := commandAnnotation(command, "metorial:help-summary")
+		if strings.TrimSpace(summary) == "" {
+			continue
+		}
+
+		for _, line := range strings.Split(summary, "\n") {
+			line = strings.TrimRight(line, " ")
+			if strings.TrimSpace(line) == "" {
+				continue
+			}
+			_, _ = fmt.Fprintf(&buffer, "    %s\n", line)
+		}
 	}
 
 	return strings.TrimRight(buffer.String(), "\n")

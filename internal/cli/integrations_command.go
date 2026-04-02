@@ -73,7 +73,7 @@ func newIntegrationsCommand(application *app.App, rootOptions *rootOptions) *cob
 			}
 
 			params := &endpoints.MagicMcpServersEndpointListParams{
-				Limit:      float64Ptr(100),
+				Limit:      float64Ptr(15),
 				ConsumerId: anyPtr(consumer.Id),
 			}
 			if search := strings.TrimSpace(optionalArg(args, 0)); search != "" {
@@ -195,8 +195,13 @@ func newIntegrationsCommand(application *app.App, rootOptions *rootOptions) *cob
 				}
 			}
 
+			name := "Metorial CLI"
+			sessionType := "auto"
 			createBody := &endpoints.ProviderDeploymentsSetupSessionsEndpointCreateBody{
-				ConsumerId: &consumer.Id,
+				ConsumerId:    &consumer.Id,
+				Name:          &name,
+				Type:          &sessionType,
+				Configuration: &map[string]any{},
 			}
 			if listing != nil {
 				createBody.ProviderId = &listing.Provider.Id
@@ -286,7 +291,7 @@ func newIntegrationsCommand(application *app.App, rootOptions *rootOptions) *cob
 		}
 
 		params := &endpoints.ProviderListingsEndpointListParams{
-			Limit: float64Ptr(100),
+			Limit: float64Ptr(15),
 		}
 		if search := strings.TrimSpace(optionalArg(args, 0)); search != "" {
 			params.Search = &search
@@ -412,7 +417,7 @@ func newIntegrationsCommand(application *app.App, rootOptions *rootOptions) *cob
 			}
 
 			templateProviders, err := sdk.SessionTemplatesProviders.List(&endpoints.SessionTemplatesProvidersEndpointListParams{
-				Limit:             float64Ptr(100),
+				Limit:             float64Ptr(15),
 				SessionTemplateId: anyPtr(server.SessionTemplateId),
 			})
 			if err != nil {
@@ -480,7 +485,14 @@ func newIntegrationsCommand(application *app.App, rootOptions *rootOptions) *cob
 	command.SetHelpTemplate(helpTemplate())
 	command.SetUsageTemplate(usageTemplate())
 	command.Annotations = map[string]string{
-		"metorial:command-category": commandCategoryGeneral,
+		"metorial:command-category": commandCategoryIntegrations,
+		"metorial:help-summary": strings.Join([]string{
+			"list [search]                 List integrations owned by your consumer",
+			"setup [listing]               Create and finish an integration setup session",
+			"catalog list [search]         Browse installable provider listings",
+			"catalog get <listing>         Show listing details, readme, and tools",
+			"tools <magic-mcp-server-id>   Show providers and tools for an integration",
+		}, "\n"),
 	}
 
 	return command
@@ -571,7 +583,7 @@ func listProviderTools(sdk *metorial.MetorialSdk, version any) ([]providertools.
 			return nil, nil
 		}
 		result, err := sdk.ProvidersTools.List(&endpoints.ProvidersToolsEndpointListParams{
-			Limit:             float64Ptr(100),
+			Limit:             float64Ptr(15),
 			ProviderVersionId: typed.Id,
 		})
 		if err != nil {
@@ -583,7 +595,7 @@ func listProviderTools(sdk *metorial.MetorialSdk, version any) ([]providertools.
 			return nil, nil
 		}
 		result, err := sdk.ProvidersTools.List(&endpoints.ProvidersToolsEndpointListParams{
-			Limit:             float64Ptr(100),
+			Limit:             float64Ptr(15),
 			ProviderVersionId: typed.Id,
 		})
 		if err != nil {
@@ -697,7 +709,7 @@ func renderCatalogList(writer io.Writer, features terminal.Features, rows []cata
 
 	for _, row := range rows {
 		table.Rows = append(table.Rows, []string{
-			colors.Bold(row.Slug) + "\n" + colors.Muted(row.Id),
+			colors.Bold(row.Slug) + "\n" + colors.Muted(row.Id) + "\n",
 			row.Name,
 			row.Publisher,
 			row.Description,
@@ -882,7 +894,7 @@ func renderToolsTable(writer io.Writer, features terminal.Features, tools []prov
 
 	for _, tool := range tools {
 		table.Rows = append(table.Rows, []string{
-			colors.Bold(tool.Key) + "\n" + colors.Muted(tool.Id),
+			colors.Bold(tool.Key) + "\n" + colors.Muted(tool.Id) + "\n",
 			tool.Name,
 			optionalString(tool.Description),
 		})
