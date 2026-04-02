@@ -98,7 +98,7 @@ func TestBuildResourceTargetAppliesDefaultListLimit(t *testing.T) {
 		t.Fatalf("buildResourceTarget() error = %v", err)
 	}
 
-	if target != "/provider-listings?limit=5" {
+	if target != "/provider-listings?limit=15" {
 		t.Fatalf("buildResourceTarget() = %q", target)
 	}
 }

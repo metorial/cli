@@ -358,7 +358,7 @@ func applyDefaultListLimit(command *cobra.Command, operation resourcecmd.Operati
 			return nil
 		}
 
-		values.Add("limit", "5")
+		values.Add("limit", "15")
 		return nil
 	}
 

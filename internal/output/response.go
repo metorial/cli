@@ -341,41 +341,6 @@ func rowsHaveKey(rows []map[string]any, key string) bool {
 	return false
 }
 
-func mapToDataList(value map[string]any) []DataListItem {
-	keys := make([]string, 0, len(value))
-	for key := range value {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-
-	items := make([]DataListItem, 0, len(keys))
-	for _, key := range keys {
-		items = append(items, DataListItem{
-			Label: humanize(key),
-			Value: renderInlineValue(value[key]),
-		})
-	}
-
-	return items
-}
-
-func omitKeys(value map[string]any, keys ...string) map[string]any {
-	excluded := map[string]struct{}{}
-	for _, key := range keys {
-		excluded[key] = struct{}{}
-	}
-
-	result := map[string]any{}
-	for key, entry := range value {
-		if _, ok := excluded[key]; ok {
-			continue
-		}
-		result[key] = entry
-	}
-
-	return result
-}
-
 func sortedKeys(value map[string][]string) []string {
 	keys := make([]string, 0, len(value))
 	for key := range value {

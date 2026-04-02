@@ -108,6 +108,7 @@ func newRootCommand(application *app.App) (*cobra.Command, error) {
 	command.AddCommand(newInstanceCommand(application, options))
 	command.AddCommand(newProfileCommand(application, options))
 	command.AddCommand(newExampleCommand(application, options))
+	command.AddCommand(newIntegrationsCommand(application, options))
 	command.AddCommand(newSettingsCommand(application, options))
 	command.AddCommand(newFetchCommand(application, options))
 	command.AddCommand(newCompletionCommand(command.OutOrStdout()))
