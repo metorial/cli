@@ -1,0 +1,98 @@
+name: '[RELEASE] Metorial CLI'
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'CLI version without a leading v'
+        required: true
+        type: string
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release-cli:
+    name: 'Release Metorial CLI'
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_PAGES_PROJECT: ${{ secrets.CLOUDFLARE_CLI_PAGES_PROJECT != '' && secrets.CLOUDFLARE_CLI_PAGES_PROJECT || 'metorial-cli' }}
+      GITHUB_TOKEN: ${{ secrets.GH_TOKEN != '' && secrets.GH_TOKEN || github.token }}
+      HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+      SCOOP_BUCKET_GITHUB_TOKEN: ${{ secrets.SCOOP_BUCKET_GITHUB_TOKEN }}
+      CHOCOLATEY_API_KEY: ${{ secrets.CHOCOLATEY_API_KEY }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GH_TOKEN != '' && secrets.GH_TOKEN || github.token }}
+
+      - name: Resolve release version
+        shell: bash
+        run: |
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
+            RAW_VERSION="${{ inputs.version }}"
+            RAW_VERSION="${RAW_VERSION#v}"
+            TAG="v${RAW_VERSION}"
+          else
+            TAG="${GITHUB_REF_NAME}"
+            RAW_VERSION="${TAG#v}"
+          fi
+
+          echo "CLI_TAG=${TAG}" >> "$GITHUB_ENV"
+          echo "CLI_VERSION=${RAW_VERSION}" >> "$GITHUB_ENV"
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.2.20'
+
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: '~> v2'
+          args: release --clean
+
+      - name: Lock npm wrapper version
+        run: node ./scripts/set-npm-version.mjs "${CLI_VERSION}"
+
+      - name: Publish npm package
+        working-directory: npm
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --access public
+
+      - name: Build hosted installer site
+        env:
+          RELEASE_VERSION: ${{ env.CLI_VERSION }}
+        run: node ./scripts/build-public.mjs
+
+      - name: Upload installer site artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: metorial-cli-public
+          path: public
+
+      - name: Deploy installer site to Cloudflare Pages
+        run: bunx wrangler@latest pages deploy ./public --project-name "${CLOUDFLARE_PAGES_PROJECT}" --branch main

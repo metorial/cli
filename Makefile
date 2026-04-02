@@ -3,7 +3,7 @@ BIN_DIR := bin
 BIN := $(BIN_DIR)/$(CLI_NAME)
 PKG := ./cmd/metorial
 
-.PHONY: help build run fmt test tidy check install clean completion-bash completion-zsh completion-fish completion-powershell release snapshot
+.PHONY: help build run fmt test tidy check install clean completion-bash completion-zsh completion-fish completion-powershell release snapshot public npm-version
 
 help:
 	@printf "%s\n" \
@@ -20,6 +20,8 @@ help:
 		"  make completion-zsh        Print zsh completions" \
 		"  make completion-fish       Print fish completions" \
 		"  make completion-powershell Print PowerShell completions" \
+		"  make public                Build the static installer site into ./public" \
+		"  make npm-version VERSION=x.y.z  Set the npm wrapper package version" \
 		"  make snapshot              Build a Goreleaser snapshot" \
 		"  make release               Run Goreleaser release --clean"
 
@@ -58,6 +60,12 @@ completion-fish:
 
 completion-powershell:
 	go run $(PKG) completion powershell
+
+public:
+	node ./scripts/build-public.mjs
+
+npm-version:
+	node ./scripts/set-npm-version.mjs $(VERSION)
 
 snapshot:
 	goreleaser release --clean --snapshot

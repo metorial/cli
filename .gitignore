@@ -24,8 +24,11 @@ profile.cov
 go.work
 go.work.sum
 
-bin
+/bin
+dist
+public
 .metorial
+npm/node_modules
 
 # env file
 .env

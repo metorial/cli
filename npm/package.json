@@ -1,0 +1,36 @@
+{
+  "name": "@metorial/cli",
+  "version": "0.0.0-development",
+  "description": "Official Metorial CLI wrapper for npm",
+  "license": "MIT",
+  "bin": {
+    "metorial": "./bin/metorial.cjs"
+  },
+  "files": [
+    "bin",
+    "lib",
+    "README.md",
+    "package.json"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/metorial/metorial-enterprise.git",
+    "directory": "oss/cli/npm"
+  },
+  "homepage": "https://cli.metorial.com",
+  "bugs": {
+    "url": "https://github.com/metorial/metorial-enterprise/issues"
+  },
+  "keywords": [
+    "metorial",
+    "cli",
+    "mcp",
+    "ai"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+}
