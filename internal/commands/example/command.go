@@ -1,4 +1,4 @@
-package cli
+package example
 
 import (
 	"archive/zip"
@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/metorial/cli/internal/app"
+	"github.com/metorial/cli/internal/commandutil"
 	"github.com/metorial/cli/internal/config"
 	"github.com/metorial/cli/internal/output"
 	"github.com/metorial/cli/internal/terminal"
@@ -115,7 +116,40 @@ type exampleLineWriter struct {
 	onLine func(string)
 }
 
-func newExampleCommand(application *app.App, rootOptions *rootOptions) *cobra.Command {
+type rootOptionsView struct {
+	apiKey   string
+	apiHost  string
+	instance string
+	profile  string
+	format   string
+}
+
+func newRootOptionsView(options *commandutil.RootOptions) *rootOptionsView {
+	if options == nil {
+		return &rootOptionsView{}
+	}
+
+	return &rootOptionsView{
+		apiKey:   options.APIKey,
+		apiHost:  options.APIHost,
+		instance: options.Instance,
+		profile:  options.Profile,
+		format:   options.Format,
+	}
+}
+
+func slugify(value string) string {
+	return commandutil.Slugify(value)
+}
+
+func firstNonEmpty(values ...string) string {
+	return commandutil.FirstNonEmpty(values...)
+}
+
+func NewCommand(ctx commandutil.Context) *cobra.Command {
+	application := ctx.App
+	rootOptions := newRootOptionsView(ctx.Options)
+
 	command := &cobra.Command{
 		Use:     "example",
 		Aliases: []string{"examples"},
@@ -147,7 +181,7 @@ dependencies when a supported package manager is present.
 			}
 
 			if format != output.FormatStructured {
-				return writeValue(command.OutOrStdout(), application.StdoutFeatures(), rootOptions.format, map[string]any{
+				return commandutil.WriteValue(command.OutOrStdout(), application.StdoutFeatures(), rootOptions.format, map[string]any{
 					"sdks":     manifest.SDKs,
 					"examples": records,
 				})
@@ -210,7 +244,7 @@ dependencies when a supported package manager is present.
 			}
 
 			if format != output.FormatStructured {
-				return writeValue(command.OutOrStdout(), application.StdoutFeatures(), rootOptions.format, result)
+				return commandutil.WriteValue(command.OutOrStdout(), application.StdoutFeatures(), rootOptions.format, result)
 			}
 
 			renderExampleCreateSummary(command.OutOrStdout(), application.StdoutFeatures(), result)
@@ -310,7 +344,7 @@ func (m *exampleManifest) records() []exampleRecord {
 	return records
 }
 
-func runExampleCreate(application *app.App, rootOptions *rootOptions, identifier, requestedPath string, progress *exampleProgress) (*exampleCreateResult, error) {
+func runExampleCreate(application *app.App, rootOptions *rootOptionsView, identifier, requestedPath string, progress *exampleProgress) (*exampleCreateResult, error) {
 	manifest, err := fetchExampleManifest()
 	if err != nil {
 		return nil, err
@@ -696,7 +730,7 @@ func renameEnvExampleFiles(root string) ([]string, error) {
 	return renamed, nil
 }
 
-func provisionExampleAPIKey(application *app.App, rootOptions *rootOptions, record *exampleRecord, root string) (*exampleAPIKeySetup, error) {
+func provisionExampleAPIKey(application *app.App, rootOptions *rootOptionsView, record *exampleRecord, root string) (*exampleAPIKeySetup, error) {
 	placeholderFiles, err := findExampleAPIKeyPlaceholderFiles(root)
 	if err != nil {
 		return nil, err
@@ -1155,9 +1189,7 @@ func renderExampleCreateSummary(writer io.Writer, features terminal.Features, re
 }
 
 func exampleDirectorySlug(value string) string {
-	slug := strings.ToLower(strings.TrimSpace(value))
-	slug = strings.ReplaceAll(slugPattern.ReplaceAllString(slug, "_"), "-", "_")
-	slug = strings.Trim(slug, "_")
+	slug := strings.ReplaceAll(commandutil.Slugify(value), "-", "_")
 	if slug == "" {
 		return "metorial_example"
 	}

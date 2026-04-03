@@ -1,23 +1,23 @@
-package cli
+package resources
 
 import (
-	"github.com/metorial/cli/internal/app"
+	"github.com/metorial/cli/internal/commandutil"
 	"github.com/metorial/cli/internal/resourcecmd"
 	"github.com/spf13/cobra"
 )
 
-func addSessionResourceCommands(root *cobra.Command, application *app.App, rootOptions *rootOptions) error {
+func AddSessionCommands(root *cobra.Command, ctx commandutil.Context) error {
+	application := ctx.App
+	rootOptions := newRootOptionsView(ctx.Options)
+
 	sessionsCommand, err := resourcecmd.NewResourceCommand(sessionResourceSpec(), func(resource resourcecmd.ResourceSpec, operation resourcecmd.OperationSpec) (*cobra.Command, error) {
 		return newPublicResourceAction(application, rootOptions, resource, operation)
 	})
 	if err != nil {
 		return err
 	}
-	sessionsCommand.Annotations = map[string]string{
-		"metorial:command-category": commandCategoryResource,
-	}
-	sessionsCommand.SetHelpTemplate(helpTemplate())
-	sessionsCommand.SetUsageTemplate(usageTemplate())
+	commandutil.SetCommandCategory(sessionsCommand, commandutil.CommandCategoryResource)
+	commandutil.ConfigureCommand(sessionsCommand)
 
 	for _, resource := range []resourcecmd.ResourceSpec{
 		sessionMessagesResourceSpec(),
@@ -33,8 +33,7 @@ func addSessionResourceCommands(root *cobra.Command, application *app.App, rootO
 		if err != nil {
 			return err
 		}
-		command.SetHelpTemplate(helpTemplate())
-		command.SetUsageTemplate(usageTemplate())
+		commandutil.ConfigureCommand(command)
 		sessionsCommand.AddCommand(command)
 	}
 
@@ -46,11 +45,8 @@ func addSessionResourceCommands(root *cobra.Command, application *app.App, rootO
 	if err != nil {
 		return err
 	}
-	sessionTemplatesCommand.Annotations = map[string]string{
-		"metorial:command-category": commandCategoryResource,
-	}
-	sessionTemplatesCommand.SetHelpTemplate(helpTemplate())
-	sessionTemplatesCommand.SetUsageTemplate(usageTemplate())
+	commandutil.SetCommandCategory(sessionTemplatesCommand, commandutil.CommandCategoryResource)
+	commandutil.ConfigureCommand(sessionTemplatesCommand)
 
 	templateProvidersCommand, err := resourcecmd.NewResourceCommand(sessionTemplateProvidersResourceSpec(), func(resource resourcecmd.ResourceSpec, operation resourcecmd.OperationSpec) (*cobra.Command, error) {
 		return newPublicResourceAction(application, rootOptions, resource, operation)
@@ -58,8 +54,7 @@ func addSessionResourceCommands(root *cobra.Command, application *app.App, rootO
 	if err != nil {
 		return err
 	}
-	templateProvidersCommand.SetHelpTemplate(helpTemplate())
-	templateProvidersCommand.SetUsageTemplate(usageTemplate())
+	commandutil.ConfigureCommand(templateProvidersCommand)
 	sessionTemplatesCommand.AddCommand(templateProvidersCommand)
 	root.AddCommand(sessionTemplatesCommand)
 

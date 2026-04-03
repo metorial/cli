@@ -9,11 +9,17 @@ func DeploymentsResource() ResourceSpec {
 		PathPlural: "provider-deployments",
 		Operations: []OperationSpec{
 			{
-				Name:     OperationList,
-				Short:    "List deployments",
-				Long:     "List deployments for the selected instance. When provided, the optional search argument filters by name or description.",
-				Args:     []ArgumentSpec{arg("search", "params.Search", "Search deployments by name or description.", false)},
-				Flags:    append(paginationFlags("deployments"), stringSliceFlag("id", "params.Id", "Filter by deployment ID"), stringSliceFlag("provider-id", "params.ProviderId", "Filter by provider ID"), stringSliceFlag("provider-version-id", "params.ProviderVersionId", "Filter by provider version ID"), stringSliceFlag("status", "params.Status", "Filter by deployment status")),
+				Name:  OperationList,
+				Short: "List deployments",
+				Long:  "List deployments for the selected instance. When provided, the optional search argument filters by name or description.",
+				Args:  []ArgumentSpec{arg("search", "params.Search", "Search deployments by name or description.", false)},
+				Flags: append(
+					paginationFlags("deployments"),
+					stringSliceFlag("id", "params.Id", "Filter by deployment ID"),
+					stringSliceFlag("provider-id", "params.ProviderId", "Filter by provider ID"),
+					stringSliceFlag("provider-version-id", "params.ProviderVersionId", "Filter by provider version ID"),
+					stringSliceFlag("status", "params.Status", "Filter by deployment status"),
+				),
 				Examples: []string{"metorial deployments list github"},
 			},
 			{

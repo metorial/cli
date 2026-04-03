@@ -1,4 +1,4 @@
-package cli
+package integrations
 
 import (
 	"context"
@@ -12,6 +12,7 @@ import (
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/metorial/cli/internal/app"
 	"github.com/metorial/cli/internal/browser"
+	"github.com/metorial/cli/internal/commandutil"
 	"github.com/metorial/cli/internal/config"
 	"github.com/metorial/cli/internal/fetch"
 	"github.com/metorial/cli/internal/output"
@@ -63,7 +64,58 @@ type paginationOptions struct {
 	Cursor string
 }
 
-func newIntegrationsCommand(application *app.App, rootOptions *rootOptions) *cobra.Command {
+type rootOptionsView struct {
+	apiKey   string
+	apiHost  string
+	instance string
+	profile  string
+	format   string
+}
+
+func newRootOptionsView(options *commandutil.RootOptions) *rootOptionsView {
+	if options == nil {
+		return &rootOptionsView{}
+	}
+
+	return &rootOptionsView{
+		apiKey:   options.APIKey,
+		apiHost:  options.APIHost,
+		instance: options.Instance,
+		profile:  options.Profile,
+		format:   options.Format,
+	}
+}
+
+func writeValue(writer io.Writer, features terminal.Features, formatInput string, value any) error {
+	return commandutil.WriteValue(writer, features, formatInput, value)
+}
+
+func helpTemplate() string {
+	return commandutil.HelpTemplate()
+}
+
+func usageTemplate() string {
+	return commandutil.UsageTemplate()
+}
+
+const commandCategoryIntegrations = commandutil.CommandCategoryIntegrations
+
+func optionalArg(args []string, index int) string {
+	if index < 0 || index >= len(args) {
+		return ""
+	}
+	return args[index]
+}
+
+func firstNonEmpty(values ...string) string {
+	return commandutil.FirstNonEmpty(values...)
+}
+
+func NewCommand(ctx commandutil.Context) *cobra.Command {
+	return newIntegrationsCommand(ctx.App, newRootOptionsView(ctx.Options))
+}
+
+func newIntegrationsCommand(application *app.App, rootOptions *rootOptionsView) *cobra.Command {
 	command := &cobra.Command{
 		Use:     "integrations",
 		Aliases: []string{"integration"},
@@ -946,7 +998,7 @@ func createMagicMcpServerProvider(runtime config.Runtime, sdk *metorial.Metorial
 	return &providerAssignment, nil
 }
 
-func resolveIntegrationMCPClient(ctx context.Context, application *app.App, rootOptions *rootOptions, integrationID string) (*magicmcpservers.MagicMcpServersGetOutput, *consumers.ConsumersGetMemberConsumerOutput, *magicMCPClient, error) {
+func resolveIntegrationMCPClient(ctx context.Context, application *app.App, rootOptions *rootOptionsView, integrationID string) (*magicmcpservers.MagicMcpServersGetOutput, *consumers.ConsumersGetMemberConsumerOutput, *magicMCPClient, error) {
 	runtime, err := application.ResolveConfig(rootOptions.apiKey, rootOptions.apiHost, rootOptions.profile, rootOptions.instance)
 	if err != nil {
 		return nil, nil, nil, err

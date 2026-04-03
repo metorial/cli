@@ -12,7 +12,13 @@ func IdentitiesResource() ResourceSpec {
 				Short: "List identities",
 				Long:  "List identities for the selected instance. When provided, the optional search argument filters by name or description.",
 				Args:  []ArgumentSpec{arg("search", "params.Search", "Search identities by name or description.", false)},
-				Flags: append(paginationFlags("identities"), stringSliceFlag("status", "params.Status", "Filter by identity status"), stringSliceFlag("id", "params.Id", "Filter by identity ID"), stringSliceFlag("agent-id", "params.AgentId", "Filter by owner agent ID"), stringSliceFlag("actor-id", "params.ActorId", "Filter by owner actor ID")),
+				Flags: append(
+					paginationFlags("identities"),
+					stringSliceFlag("status", "params.Status", "Filter by identity status"),
+					stringSliceFlag("id", "params.Id", "Filter by identity ID"),
+					stringSliceFlag("agent-id", "params.AgentId", "Filter by owner agent ID"),
+					stringSliceFlag("actor-id", "params.ActorId", "Filter by owner actor ID"),
+				),
 				Examples: []string{
 					"metorial identities list",
 					"metorial identities list github",
@@ -85,7 +91,13 @@ func ActorsResource() ResourceSpec {
 				Short: "List actors",
 				Long:  "List identity actors for the selected instance. When provided, the optional search argument filters by name or description.",
 				Args:  []ArgumentSpec{arg("search", "params.Search", "Search actors by name or description.", false)},
-				Flags: append(paginationFlags("actors"), stringSliceFlag("status", "params.Status", "Filter by actor status"), stringSliceFlag("id", "params.Id", "Filter by actor ID"), stringSliceFlag("agent-id", "params.AgentId", "Filter by linked agent ID"), stringSliceFlag("consumer-id", "params.ConsumerId", "Filter by linked consumer ID")),
+				Flags: append(
+					paginationFlags("actors"),
+					stringSliceFlag("status", "params.Status", "Filter by actor status"),
+					stringSliceFlag("id", "params.Id", "Filter by actor ID"),
+					stringSliceFlag("agent-id", "params.AgentId", "Filter by linked agent ID"),
+					stringSliceFlag("consumer-id", "params.ConsumerId", "Filter by linked consumer ID"),
+				),
 				Examples: []string{
 					"metorial actors list",
 					"metorial actors list support",

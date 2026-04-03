@@ -1,4 +1,4 @@
-package cli
+package resources
 
 import (
 	"encoding/json"
@@ -10,18 +10,43 @@ import (
 	"unicode"
 
 	"github.com/metorial/cli/internal/app"
+	"github.com/metorial/cli/internal/commandutil"
 	"github.com/metorial/cli/internal/fetch"
 	"github.com/metorial/cli/internal/output"
 	"github.com/metorial/cli/internal/resourcecmd"
 	"github.com/spf13/cobra"
 )
 
-func addPublicResourceCommands(
+type rootOptionsView struct {
+	apiKey   string
+	apiHost  string
+	instance string
+	profile  string
+	format   string
+}
+
+func newRootOptionsView(options *commandutil.RootOptions) *rootOptionsView {
+	if options == nil {
+		return &rootOptionsView{}
+	}
+
+	return &rootOptionsView{
+		apiKey:   options.APIKey,
+		apiHost:  options.APIHost,
+		instance: options.Instance,
+		profile:  options.Profile,
+		format:   options.Format,
+	}
+}
+
+func AddPublicCommands(
 	root *cobra.Command,
-	application *app.App,
-	rootOptions *rootOptions,
-	plan []resourcecmd.ResourceGroup,
+	ctx commandutil.Context,
 ) error {
+	application := ctx.App
+	rootOptions := newRootOptionsView(ctx.Options)
+	plan := resourcecmd.PublicResourcePlan()
+
 	for _, group := range plan {
 		for _, resource := range group.Resources {
 			if resource.Plural == "instance" {
@@ -35,11 +60,8 @@ func addPublicResourceCommands(
 				return err
 			}
 
-			command.Annotations = map[string]string{
-				"metorial:command-category": commandCategoryResource,
-			}
-			command.SetHelpTemplate(helpTemplate())
-			command.SetUsageTemplate(usageTemplate())
+			commandutil.SetCommandCategory(command, commandutil.CommandCategoryResource)
+			commandutil.ConfigureCommand(command)
 			root.AddCommand(command)
 		}
 	}
@@ -49,7 +71,7 @@ func addPublicResourceCommands(
 
 func newPublicResourceAction(
 	application *app.App,
-	rootOptions *rootOptions,
+	rootOptions *rootOptionsView,
 	resource resourcecmd.ResourceSpec,
 	operation resourcecmd.OperationSpec,
 ) (*cobra.Command, error) {
@@ -70,7 +92,7 @@ func newPublicResourceAction(
 		Example: strings.Join(operation.Examples, "\n"),
 		Args:    resourceOperationArgs(operation),
 		Annotations: map[string]string{
-			"metorial:command-category": commandCategoryResource,
+			"metorial:command-category": commandutil.CommandCategoryResource,
 			"metorial:arguments":        formatArgumentSection(operation.Args),
 			"metorial:see-also":         formatSeeAlsoSection(operation.SeeAlso),
 		},
@@ -110,8 +132,7 @@ func newPublicResourceAction(
 			return requestErr
 		},
 	}
-	command.SetHelpTemplate(helpTemplate())
-	command.SetUsageTemplate(usageTemplate())
+	commandutil.ConfigureCommand(command)
 
 	addOperationFlags(command, operation)
 

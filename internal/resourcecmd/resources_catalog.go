@@ -27,7 +27,8 @@ func ProvidersResource() ResourceSpec {
 				Short: "List providers",
 				Long:  "List providers using the searchable provider listings endpoint and render the nested provider objects.",
 				Args:  []ArgumentSpec{arg("search", "params.Search", "Search providers by name or description.", false)},
-				Flags: append(paginationFlags("providers"),
+				Flags: append(
+					paginationFlags("providers"),
 					stringSliceFlag("id", "params.Id", "Filter by provider listing ID"),
 					stringSliceFlag("provider-category-id", "params.ProviderCategoryId", "Filter by provider category ID"),
 					stringSliceFlag("provider-collection-id", "params.ProviderCollectionId", "Filter by provider collection ID"),

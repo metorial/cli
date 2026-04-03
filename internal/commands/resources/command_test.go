@@ -1,4 +1,4 @@
-package cli
+package resources
 
 import (
 	"bytes"
@@ -6,15 +6,17 @@ import (
 	"testing"
 
 	"github.com/metorial/cli/internal/app"
+	"github.com/metorial/cli/internal/commandutil"
 	"github.com/metorial/cli/internal/resourcecmd"
+	"github.com/spf13/cobra"
 )
 
 func TestNewRootCommandRegistersProvidersResource(t *testing.T) {
 	t.Parallel()
 
-	command, err := newRootCommand(&app.App{})
+	command, err := newTestRootCommand(&app.App{})
 	if err != nil {
-		t.Fatalf("newRootCommand() error = %v", err)
+		t.Fatalf("newTestRootCommand() error = %v", err)
 	}
 
 	found := false
@@ -39,9 +41,9 @@ func TestRootHelpSeparatesResourceCommands(t *testing.T) {
 		Stderr: &bytes.Buffer{},
 	}
 
-	command, err := newRootCommand(application)
+	command, err := newTestRootCommand(application)
 	if err != nil {
-		t.Fatalf("newRootCommand() error = %v", err)
+		t.Fatalf("newTestRootCommand() error = %v", err)
 	}
 
 	if err := command.Help(); err != nil {
@@ -60,10 +62,33 @@ func TestRootHelpSeparatesResourceCommands(t *testing.T) {
 	}
 }
 
+func newTestRootCommand(application *app.App) (*cobra.Command, error) {
+	commandutil.RegisterTemplateFuncs()
+	commandutil.ConfigureHelpFeatures(application.StdoutFeatures())
+	ctx := commandutil.NewContext(application, &commandutil.RootOptions{Format: "structured"})
+
+	command := &cobra.Command{
+		Use:   "metorial",
+		Short: "CLI for the Metorial API and platform",
+	}
+	command.SetOut(application.Stdout)
+	command.SetErr(application.Stderr)
+	commandutil.ConfigureCommand(command)
+
+	if err := AddPublicCommands(command, ctx); err != nil {
+		return nil, err
+	}
+	if err := AddSessionCommands(command, ctx); err != nil {
+		return nil, err
+	}
+
+	return command, nil
+}
+
 func TestBuildResourceTargetIncludesRepeatedQueryValues(t *testing.T) {
 	t.Parallel()
 
-	command, err := newPublicResourceAction(&app.App{}, &rootOptions{}, resourcecmd.ProvidersResource(), resourcecmd.ProvidersResource().Operations[0])
+	command, err := newPublicResourceAction(&app.App{}, &rootOptionsView{}, resourcecmd.ProvidersResource(), resourcecmd.ProvidersResource().Operations[0])
 	if err != nil {
 		t.Fatalf("newPublicResourceAction() error = %v", err)
 	}
@@ -88,7 +113,7 @@ func TestBuildResourceTargetIncludesRepeatedQueryValues(t *testing.T) {
 func TestBuildResourceTargetAppliesDefaultListLimit(t *testing.T) {
 	t.Parallel()
 
-	command, err := newPublicResourceAction(&app.App{}, &rootOptions{}, resourcecmd.ProvidersResource(), resourcecmd.ProvidersResource().Operations[0])
+	command, err := newPublicResourceAction(&app.App{}, &rootOptionsView{}, resourcecmd.ProvidersResource(), resourcecmd.ProvidersResource().Operations[0])
 	if err != nil {
 		t.Fatalf("newPublicResourceAction() error = %v", err)
 	}
@@ -112,7 +137,7 @@ func TestBuildResourceBodyMergesExplicitJSONAndFlags(t *testing.T) {
 		t.Fatalf("DeploymentsResource() missing create operation")
 	}
 
-	command, err := newPublicResourceAction(&app.App{}, &rootOptions{}, resource, operation)
+	command, err := newPublicResourceAction(&app.App{}, &rootOptionsView{}, resource, operation)
 	if err != nil {
 		t.Fatalf("newPublicResourceAction() error = %v", err)
 	}
@@ -171,7 +196,7 @@ func TestResourceOperationArgsRendersHelpOnMissingArgs(t *testing.T) {
 	t.Parallel()
 
 	stdout := &bytes.Buffer{}
-	command, err := newPublicResourceAction(&app.App{}, &rootOptions{}, resourcecmd.ActorsResource(), resourcecmd.ActorsResource().Operations[2])
+	command, err := newPublicResourceAction(&app.App{}, &rootOptionsView{}, resourcecmd.ActorsResource(), resourcecmd.ActorsResource().Operations[2])
 	if err != nil {
 		t.Fatalf("newPublicResourceAction() error = %v", err)
 	}
@@ -204,7 +229,7 @@ func TestBuildResourceTargetUsesSnakeCaseQueryKeys(t *testing.T) {
 		t.Fatalf("AuthConfigsResource() missing list operation")
 	}
 
-	command, err := newPublicResourceAction(&app.App{}, &rootOptions{}, resource, operation)
+	command, err := newPublicResourceAction(&app.App{}, &rootOptionsView{}, resource, operation)
 	if err != nil {
 		t.Fatalf("newPublicResourceAction() error = %v", err)
 	}
@@ -227,7 +252,7 @@ func TestResourceCommandHelpIncludesArgumentsSection(t *testing.T) {
 	t.Parallel()
 
 	stdout := &bytes.Buffer{}
-	command, err := newPublicResourceAction(&app.App{Stdout: stdout, Stderr: &bytes.Buffer{}}, &rootOptions{}, resourcecmd.IdentitiesResource(), resourcecmd.IdentitiesResource().Operations[2])
+	command, err := newPublicResourceAction(&app.App{Stdout: stdout, Stderr: &bytes.Buffer{}}, &rootOptionsView{}, resourcecmd.IdentitiesResource(), resourcecmd.IdentitiesResource().Operations[2])
 	if err != nil {
 		t.Fatalf("newPublicResourceAction() error = %v", err)
 	}

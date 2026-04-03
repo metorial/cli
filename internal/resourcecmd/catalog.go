@@ -1,14 +1,10 @@
 package resourcecmd
 
-type ResourceGroup struct {
-	Title     string
-	Resources []ResourceSpec
-}
-
-func PublicResourcePlan() []ResourceGroup {
+// PublicCatalog returns the resource groups exposed as top-level public CLI resources.
+func PublicCatalog() []ResourceGroup {
 	return []ResourceGroup{
 		{
-			Title: "Initial Rollout",
+			Title: "Core Resources",
 			Resources: []ResourceSpec{
 				InstanceResource(),
 				ProvidersResource(),

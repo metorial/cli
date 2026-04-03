@@ -1,4 +1,4 @@
-package cli
+package example
 
 import (
 	"archive/zip"
@@ -15,6 +15,7 @@ import (
 	"testing"
 
 	"github.com/metorial/cli/internal/app"
+	"github.com/metorial/cli/internal/commandutil"
 	"github.com/metorial/cli/internal/config"
 )
 
@@ -82,14 +83,11 @@ func TestExampleListStructuredOutputIncludesIdentifier(t *testing.T) {
 	defer restore()
 
 	stdout := &bytes.Buffer{}
-	command, err := newRootCommand(&app.App{Stdout: stdout, Stderr: &bytes.Buffer{}})
-	if err != nil {
-		t.Fatalf("newRootCommand() error = %v", err)
-	}
+	command := NewCommand(commandutil.NewContext(&app.App{Stdout: stdout, Stderr: &bytes.Buffer{}}, &commandutil.RootOptions{Format: "structured"}))
 
 	command.SetOut(stdout)
 	command.SetErr(&bytes.Buffer{})
-	command.SetArgs([]string{"example", "list"})
+	command.SetArgs([]string{"list"})
 	if err := command.Execute(); err != nil {
 		t.Fatalf("Execute() error = %v", err)
 	}
@@ -189,14 +187,14 @@ func TestExampleCreateJSONDownloadsPreparesAndInstalls(t *testing.T) {
 	defer restore()
 
 	stdout := &bytes.Buffer{}
-	command, err := newRootCommand(&app.App{Stdout: stdout, Stderr: &bytes.Buffer{}})
-	if err != nil {
-		t.Fatalf("newRootCommand() error = %v", err)
-	}
+	command := NewCommand(commandutil.NewContext(&app.App{Stdout: stdout, Stderr: &bytes.Buffer{}}, &commandutil.RootOptions{
+		APIHost: server.URL,
+		Format:  "json",
+	}))
 
 	command.SetOut(stdout)
 	command.SetErr(&bytes.Buffer{})
-	command.SetArgs([]string{"--api-host", server.URL, "--format", "json", "example", "create", "metorial-openai", targetDir})
+	command.SetArgs([]string{"create", "metorial-openai", targetDir})
 	if err := command.Execute(); err != nil {
 		t.Fatalf("Execute() error = %v", err)
 	}
