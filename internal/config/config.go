@@ -117,7 +117,7 @@ func (r Runtime) RequireAPIKey() error {
 	}
 
 	return fmt.Errorf(
-		"metorial: no authentication found, run \"metorial login\" or set %s/%s or pass --api-key",
+		"metorial: no authentication found.\nSign in with \"metorial login\" to keep using saved profiles on this machine.\nOr set %s/%s or pass --api-key for a one-off request.",
 		EnvAPIKey,
 		EnvToken,
 	)

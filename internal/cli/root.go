@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/metorial/cli/internal/app"
 	authcmd "github.com/metorial/cli/internal/commands/auth"
@@ -16,6 +17,7 @@ import (
 	"github.com/metorial/cli/internal/commandutil"
 	"github.com/metorial/cli/internal/config"
 	"github.com/metorial/cli/internal/output"
+	"github.com/metorial/cli/internal/terminal"
 	"github.com/metorial/cli/internal/version"
 	"github.com/spf13/cobra"
 )
@@ -24,12 +26,12 @@ func Run() int {
 	application := app.New()
 	command, err := NewRootCommand(application)
 	if err != nil {
-		_, _ = fmt.Fprintln(application.Stderr, err)
+		renderCLIError(application, err)
 		return 1
 	}
 
 	if err := command.Execute(); err != nil {
-		_, _ = fmt.Fprintln(application.Stderr, err)
+		renderCLIError(application, err)
 		return 1
 	}
 
@@ -81,6 +83,7 @@ func NewRootCommand(application *app.App) (*cobra.Command, error) {
 	command.AddCommand(systemcmd.NewVersionCommand())
 	command.AddCommand(systemcmd.NewFeedbackCommand())
 	command.AddCommand(systemcmd.NewOpenCommand())
+	command.AddCommand(authcmd.NewCommand(ctx))
 	command.AddCommand(authcmd.NewLoginCommand(ctx))
 	command.AddCommand(authcmd.NewLogoutCommand())
 	command.AddCommand(instancecmd.NewCommand(ctx))
@@ -128,4 +131,35 @@ func resolveDefaultOutputFormat(raw string) (string, error) {
 	}
 
 	return string(format), nil
+}
+
+func renderCLIError(application *app.App, err error) {
+	message := strings.TrimSpace(err.Error())
+	if message == "" {
+		return
+	}
+
+	features := application.StderrFeatures()
+	colors := terminal.NewColorizer(features)
+
+	if strings.Contains(message, "metorial: no authentication found.") {
+		_, _ = fmt.Fprintln(application.Stderr, colors.Warning("Authentication Required"))
+		_, _ = fmt.Fprintln(application.Stderr)
+		_, _ = fmt.Fprintln(application.Stderr, colors.Muted("Sign in with `metorial login` to use your saved profile on this machine."))
+		_, _ = fmt.Fprintln(application.Stderr)
+		_, _ = fmt.Fprintln(application.Stderr, colors.Notice("Other options"))
+		_, _ = fmt.Fprintln(application.Stderr, colors.Muted("Use `--api-key` for a one-off request, or set `METORIAL_API_KEY` / `METORIAL_TOKEN`."))
+		return
+	}
+
+	lines := strings.Split(message, "\n")
+	_, _ = fmt.Fprintln(application.Stderr, colors.Warning(lines[0]))
+	for _, line := range lines[1:] {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			_, _ = fmt.Fprintln(application.Stderr)
+			continue
+		}
+		_, _ = fmt.Fprintln(application.Stderr, colors.Muted(trimmed))
+	}
 }

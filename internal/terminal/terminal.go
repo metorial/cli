@@ -2,6 +2,7 @@ package terminal
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
@@ -30,6 +31,17 @@ func Detect(file *os.File) Features {
 		HasUnicode: os.Getenv("LANG") != "C",
 		Width:      width,
 	}
+}
+
+func DetectWriter(writer io.Writer) Features {
+	file, ok := writer.(*os.File)
+	if !ok {
+		return Features{
+			HasUnicode: os.Getenv("LANG") != "C",
+		}
+	}
+
+	return Detect(file)
 }
 
 func SupportsHyperlinks() bool {

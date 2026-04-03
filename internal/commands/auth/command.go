@@ -32,6 +32,23 @@ place. The latest successful login becomes the current profile.
 	}
 }
 
+func NewCommand(ctx commandutil.Context) *cobra.Command {
+	command := &cobra.Command{
+		Use:    "auth",
+		Short:  "Authentication commands",
+		Hidden: true,
+		Long: strings.TrimSpace(`
+Manage Metorial CLI authentication flows and saved profiles.
+`),
+	}
+
+	command.AddCommand(NewLoginCommand(ctx))
+	command.AddCommand(NewLogoutCommand())
+	command.AddCommand(NewProfileCommand(ctx))
+
+	return command
+}
+
 func NewLogoutCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   "logout",
@@ -42,10 +59,13 @@ func NewLogoutCommand() *cobra.Command {
 				return err
 			}
 
+			stdoutFeatures := terminal.DetectWriter(command.OutOrStdout())
 			currentProfile, ok := store.CurrentProfile()
 			if !ok {
-				_, _ = fmt.Fprintln(command.OutOrStdout(), "No active profile is configured.")
-				_, _ = fmt.Fprintln(command.OutOrStdout(), "Run \"metorial login\" to add a profile.")
+				colors := terminal.NewColorizer(stdoutFeatures)
+				_, _ = fmt.Fprintln(command.OutOrStdout(), colors.Bold("No active profile is configured."))
+				_, _ = fmt.Fprintln(command.OutOrStdout())
+				_, _ = fmt.Fprintln(command.OutOrStdout(), colors.Muted("Run `metorial login` to add a profile."))
 				return nil
 			}
 
@@ -54,16 +74,14 @@ func NewLogoutCommand() *cobra.Command {
 				return err
 			}
 
-			_, _ = fmt.Fprintf(command.OutOrStdout(), "Logged out from profile %s (%s).\n", removedProfile.Name, removedProfile.ID)
-
 			nextProfile, ok := store.CurrentProfile()
 			if ok {
-				_, _ = fmt.Fprintf(command.OutOrStdout(), "Current profile is now %s (%s).\n", nextProfile.Name, nextProfile.ID)
+				renderLogoutSuccess(command.OutOrStdout(), stdoutFeatures, *removedProfile, nextProfile)
 				return nil
 			}
 
-			_, _ = fmt.Fprintln(command.OutOrStdout(), "No profiles remain on this machine.")
-			_, _ = fmt.Fprintln(command.OutOrStdout(), "Run \"metorial login\" to add a new profile.")
+			renderLogoutSuccess(command.OutOrStdout(), stdoutFeatures, *removedProfile, nil)
+
 			return nil
 		},
 	}
@@ -73,7 +91,7 @@ func NewProfileCommand(ctx commandutil.Context) *cobra.Command {
 	command := &cobra.Command{
 		Use:     "profile",
 		Aliases: []string{"profiles"},
-		Short:   "Manage saved OAuth profiles",
+		Short:   "Manage saved auth profiles",
 	}
 
 	command.AddCommand(&cobra.Command{

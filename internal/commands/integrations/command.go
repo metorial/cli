@@ -119,7 +119,7 @@ func newIntegrationsCommand(application *app.App, rootOptions *rootOptionsView) 
 	command := &cobra.Command{
 		Use:     "integrations",
 		Aliases: []string{"integration"},
-		Short:   "Browse and set up consumer-owned integrations",
+		Short:   "Browse and set up your integrations",
 	}
 
 	integrationListPagination := paginationOptions{Limit: 15}
@@ -127,7 +127,8 @@ func newIntegrationsCommand(application *app.App, rootOptions *rootOptionsView) 
 
 	listCommand := &cobra.Command{
 		Use:   "list [search]",
-		Short: "List integrations owned by your consumer",
+		Hidden: true,
+		Short: "List your integrations, optionally filtering by a search term",
 		Args:  cobra.RangeArgs(0, 1),
 		RunE: func(command *cobra.Command, args []string) error {
 			runtime, err := application.ResolveConfig(rootOptions.apiKey, rootOptions.apiHost, rootOptions.profile, rootOptions.instance)
@@ -204,8 +205,8 @@ func newIntegrationsCommand(application *app.App, rootOptions *rootOptionsView) 
 	command.AddCommand(listCommand)
 
 	command.AddCommand(&cobra.Command{
-		Use:   "get <magic-mcp-server-id>",
-		Short: "Show a magic MCP server integration",
+		Use:   "get <integration-id>",
+		Short: "View an integration's details and tools",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(command *cobra.Command, args []string) error {
 			runtime, err := application.ResolveConfig(rootOptions.apiKey, rootOptions.apiHost, rootOptions.profile, rootOptions.instance)
@@ -251,7 +252,7 @@ func newIntegrationsCommand(application *app.App, rootOptions *rootOptionsView) 
 
 	command.AddCommand(&cobra.Command{
 		Use:   "setup [provider-listing-slug-or-id]",
-		Short: "Create a new integration through a setup session",
+		Short: "Configure a new integration from the Metorial catalog",
 		Args:  cobra.RangeArgs(0, 1),
 		RunE: func(command *cobra.Command, args []string) error {
 			runtime, err := application.ResolveConfig(rootOptions.apiKey, rootOptions.apiHost, rootOptions.profile, rootOptions.instance)
@@ -545,7 +546,7 @@ func newIntegrationsCommand(application *app.App, rootOptions *rootOptionsView) 
 	command.AddCommand(clientCommand)
 
 	installCommand := &cobra.Command{
-		Use:   "install <client-identifier> <magic-mcp-server-id>",
+		Use:   "install <client-identifier> <integration-id>",
 		Short: "Install an integration into a local MCP client",
 		Args:  cobra.ExactArgs(2),
 		RunE: func(command *cobra.Command, args []string) error {
@@ -626,7 +627,7 @@ func newIntegrationsCommand(application *app.App, rootOptions *rootOptionsView) 
 		},
 	}
 	installCommand.AddCommand(&cobra.Command{
-		Use:   "custom <magic-mcp-server-id>",
+		Use:   "custom <integration-id>",
 		Short: "Create a custom installation token and show the endpoint details",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(command *cobra.Command, args []string) error {
@@ -680,8 +681,8 @@ func newIntegrationsCommand(application *app.App, rootOptions *rootOptionsView) 
 	command.AddCommand(installCommand)
 
 	command.AddCommand(&cobra.Command{
-		Use:   "tools <magic-mcp-server-id>",
-		Short: "Show provider details and tools for an integration",
+		Use:   "tools <integration-id>",
+		Short: "View provider details and tools for an integration",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(command *cobra.Command, args []string) error {
 			ctx := command.Context()
@@ -795,8 +796,8 @@ func newIntegrationsCommand(application *app.App, rootOptions *rootOptionsView) 
 	})
 
 	command.AddCommand(&cobra.Command{
-		Use:   "schema <magic-mcp-server-id> <tool-key>",
-		Short: "Show the MCP input schema for a tool",
+		Use:   "schema <integration-id> <tool-key>",
+		Short: "View the input schema for an integration tool",
 		Args:  cobra.ExactArgs(2),
 		RunE: func(command *cobra.Command, args []string) error {
 			ctx := command.Context()
@@ -830,7 +831,7 @@ func newIntegrationsCommand(application *app.App, rootOptions *rootOptionsView) 
 
 	callOptions := &integrationCallOptions{}
 	callCommand := &cobra.Command{
-		Use:   "call <magic-mcp-server-id> <tool-key>",
+		Use:   "call <integration-id> <tool-key>",
 		Short: "Call an integration tool over MCP",
 		Args:  cobra.ExactArgs(2),
 		RunE: func(command *cobra.Command, args []string) error {
@@ -878,7 +879,6 @@ func newIntegrationsCommand(application *app.App, rootOptions *rootOptionsView) 
 	command.Annotations = map[string]string{
 		"metorial:command-category": commandCategoryIntegrations,
 		"metorial:help-summary": strings.Join([]string{
-			"list [search]                 List integrations owned by your consumer",
 			"search [search]               Shortcut for catalog search",
 			"setup [listing]               Create and finish an integration setup session",
 			"install <client> <id>         Install an integration into a local client",
@@ -887,7 +887,7 @@ func newIntegrationsCommand(application *app.App, rootOptions *rootOptionsView) 
 			"call <integration> <tool>     Validate input and call a tool over MCP",
 			"catalog list [search]         Browse installable provider listings",
 			"catalog get <listing>         Show listing details, readme, and tools",
-			"tools <magic-mcp-server-id>   Show providers and tools for an integration",
+			"tools <integration-id>   Show providers and tools for an integration",
 		}, "\n"),
 	}
 

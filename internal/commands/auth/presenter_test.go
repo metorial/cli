@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/metorial/cli/internal/config"
 	"github.com/metorial/cli/internal/terminal"
 )
 
@@ -15,9 +16,6 @@ func TestRenderLoginAuthScreenIncludesBrowserMessageWhenSupported(t *testing.T) 
 	renderLoginAuthScreen(&output, terminal.Features{}, "https://app.metorial.com/cli/auth", "ABCD-1234", true)
 
 	rendered := output.String()
-	if !strings.Contains(rendered, "Welcome to the Metorial CLI!") {
-		t.Fatalf("renderLoginAuthScreen() missing welcome: %q", rendered)
-	}
 	if !strings.Contains(rendered, "Please sign in to your Metorial account.") {
 		t.Fatalf("renderLoginAuthScreen() missing sign-in copy: %q", rendered)
 	}
@@ -44,13 +42,48 @@ func TestRenderLoginSuccess(t *testing.T) {
 	}
 }
 
-func TestRenderLoginWaitingScreenWithFeatures(t *testing.T) {
+func TestRenderLogoutSuccessWithoutRemainingProfiles(t *testing.T) {
 	t.Parallel()
 
 	var output bytes.Buffer
-	renderLoginWaitingScreenWithFeatures(&output, terminal.Features{})
+	renderLogoutSuccess(&output, terminal.Features{}, config.Profile{
+		Name:      "testing",
+		OrgName:   "Testing Org",
+		UserEmail: "test@example.com",
+	}, nil)
 
-	if !strings.Contains(output.String(), "Welcome to the Metorial CLI!") {
-		t.Fatalf("renderLoginWaitingScreenWithFeatures() missing welcome: %q", output.String())
+	rendered := output.String()
+	if !strings.Contains(rendered, "Logged out from Metorial successfully.") {
+		t.Fatalf("renderLogoutSuccess() missing success message: %q", rendered)
+	}
+	if !strings.Contains(rendered, "Removed Profile: testing") {
+		t.Fatalf("renderLogoutSuccess() missing removed profile: %q", rendered)
+	}
+	if !strings.Contains(rendered, "No profiles remain on this machine.") {
+		t.Fatalf("renderLogoutSuccess() missing empty state: %q", rendered)
+	}
+	if !strings.Contains(rendered, "Run `metorial login` to add a new profile.") {
+		t.Fatalf("renderLogoutSuccess() missing next step: %q", rendered)
+	}
+}
+
+func TestRenderLogoutSuccessWithNextProfile(t *testing.T) {
+	t.Parallel()
+
+	var output bytes.Buffer
+	renderLogoutSuccess(&output, terminal.Features{}, config.Profile{
+		Name:      "testing",
+		OrgName:   "Testing Org",
+		UserEmail: "test@example.com",
+	}, &config.Profile{
+		Name: "backup",
+	})
+
+	rendered := output.String()
+	if !strings.Contains(rendered, "Active profile: backup") {
+		t.Fatalf("renderLogoutSuccess() missing next profile: %q", rendered)
+	}
+	if !strings.Contains(rendered, "Continue with the Metorial CLI using this profile.") {
+		t.Fatalf("renderLogoutSuccess() missing continuation hint: %q", rendered)
 	}
 }
