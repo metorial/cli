@@ -126,10 +126,10 @@ func newIntegrationsCommand(application *app.App, rootOptions *rootOptionsView) 
 	catalogPagination := paginationOptions{Limit: 15}
 
 	listCommand := &cobra.Command{
-		Use:   "list [search]",
+		Use:    "list [search]",
 		Hidden: true,
-		Short: "List your integrations, optionally filtering by a search term",
-		Args:  cobra.RangeArgs(0, 1),
+		Short:  "List your integrations, optionally filtering by a search term",
+		Args:   cobra.RangeArgs(0, 1),
 		RunE: func(command *cobra.Command, args []string) error {
 			runtime, err := application.ResolveConfig(rootOptions.apiKey, rootOptions.apiHost, rootOptions.profile, rootOptions.instance)
 			if err != nil {
