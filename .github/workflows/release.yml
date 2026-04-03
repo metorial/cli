@@ -31,31 +31,10 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GH_TOKEN != '' && secrets.GH_TOKEN || github.token }}
 
-      - name: Checkout SDK source
-        uses: actions/checkout@v4
-        with:
-          repository: metorial/metorial-enterprise
-          path: metorial-enterprise
-          fetch-depth: 1
-          sparse-checkout: |
-            oss/clients/metorial-go
-          token: ${{ secrets.GH_TOKEN != '' && secrets.GH_TOKEN || github.token }}
-
-      - name: Link SDK dependency
-        shell: bash
-        run: |
-          mkdir -p ../clients
-          ln -sfn "$GITHUB_WORKSPACE/metorial-enterprise/oss/clients/metorial-go" ../clients/metorial-go
-
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
 
       - name: Install Bun
         uses: oven-sh/setup-bun@v2
