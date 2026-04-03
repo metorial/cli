@@ -28,6 +28,8 @@ go.work.sum
 dist
 public
 .metorial
+node_modules
+npm/*/dist
 npm/node_modules
 metorial
 

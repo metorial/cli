@@ -97,9 +97,15 @@ for (let release of releases) {
 
 await mkdir(path.join(publicDir, 'metorial-cli'), { recursive: true });
 await writeFile(path.join(publicDir, 'metorial-cli', 'latest'), `${latestRelease.tag_name}\n`);
-await writeFile(path.join(publicDir, 'metorial-cli', 'releases.json'), JSON.stringify(mirroredReleases, null, 2) + '\n');
+await writeFile(
+  path.join(publicDir, 'metorial-cli', 'releases.json'),
+  JSON.stringify(mirroredReleases, null, 2) + '\n'
+);
 await copyFile(installTemplatePath, path.join(publicDir, 'install.sh'));
-await writeFile(path.join(publicDir, 'index.html'), renderIndex(latestRelease, mirroredReleases));
+await writeFile(
+  path.join(publicDir, 'index.html'),
+  renderIndex(latestRelease, mirroredReleases)
+);
 
 async function getAllReleases(): Promise<GitHubRelease[]> {
   let releases: GitHubRelease[] = [];
@@ -167,123 +173,14 @@ function buildHeaders() {
 }
 
 function renderIndex(latestRelease: GitHubRelease, releases: MirroredRelease[]) {
-  let releaseList = releases
-    .map(release => {
-      let assetList = release.assets
-        .map(asset => `<li><a href="${asset.download_url}">${escapeHtml(asset.name)}</a></li>`)
-        .join('');
-
-      return `
-        <section>
-          <h2>${escapeHtml(release.tag)}</h2>
-          <p>Published ${escapeHtml(formatDate(release.published_at))}</p>
-          <p><a href="${escapeHtml(release.html_url)}">View GitHub release notes</a></p>
-          <ul>${assetList}</ul>
-        </section>
-      `;
-    })
-    .join('\n');
-
   return `<!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Metorial CLI</title>
-    <style>
-      :root {
-        color-scheme: light;
-        --background: #f3efe7;
-        --panel: rgba(255, 251, 244, 0.88);
-        --text: #18212b;
-        --muted: #5d6672;
-        --border: #d8cdbd;
-        --accent: #0f5bd8;
-      }
-      * {
-        box-sizing: border-box;
-      }
-      body {
-        margin: 0;
-        font-family: "IBM Plex Mono", "SFMono-Regular", "Menlo", monospace;
-        color: var(--text);
-        background:
-          radial-gradient(circle at top left, rgba(15, 91, 216, 0.18), transparent 34%),
-          linear-gradient(180deg, #fcfaf6 0%, var(--background) 100%);
-      }
-      main {
-        max-width: 920px;
-        margin: 0 auto;
-        padding: 48px 20px 72px;
-      }
-      h1 {
-        margin: 0 0 12px;
-        font-size: 44px;
-        line-height: 1;
-      }
-      p, li {
-        line-height: 1.6;
-      }
-      .panel, section {
-        margin-top: 24px;
-        padding: 24px;
-        border-radius: 20px;
-        border: 1px solid var(--border);
-        background: var(--panel);
-        backdrop-filter: blur(10px);
-        box-shadow: 0 20px 50px rgba(24, 33, 43, 0.08);
-      }
-      pre {
-        margin: 0;
-        overflow: auto;
-        border-radius: 14px;
-        padding: 18px;
-        background: #102133;
-        color: #f8f4eb;
-      }
-      a {
-        color: var(--accent);
-      }
-      ul {
-        padding-left: 20px;
-      }
-      .muted {
-        color: var(--muted);
-      }
-    </style>
+    <meta http-equiv="refresh" content="0; url=https://metorial.com/cli" />
   </head>
-  <body>
-    <main>
-      <h1>Metorial CLI</h1>
-      <p class="muted">Hosted release artifacts and installer for the official Metorial CLI.</p>
-      <div class="panel">
-        <p>Latest release: <strong>${escapeHtml(latestRelease.tag_name)}</strong></p>
-        <pre><code>curl -fsSL https://cli.metorial.com/install.sh | bash</code></pre>
-      </div>
-      ${releaseList}
-    </main>
-  </body>
 </html>
 `;
-}
-
-function formatDate(value: string | null) {
-  if (!value) {
-    return 'unknown date';
-  }
-
-  return new Intl.DateTimeFormat('en-US', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric'
-  }).format(new Date(value));
-}
-
-function escapeHtml(value: string) {
-  return String(value)
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;');
 }

@@ -25,6 +25,11 @@ jobs:
         with:
           go-version-file: go.mod
 
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.2.20'
+
       - name: Verify formatting
         shell: bash
         run: |
@@ -39,3 +44,9 @@ jobs:
 
       - name: Build CLI
         run: go build ./cmd/metorial
+
+      - name: Install npm workspace dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build npm packages
+        run: bun run build:npm

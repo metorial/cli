@@ -1,0 +1,21 @@
+{
+  "name": "@metorial/cli-core",
+  "version": "0.0.0-dev",
+  "description": "Runtime helpers for downloading and invoking the Metorial CLI",
+  "license": "MIT",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsup --config tsup.config.ts"
+  },
+  "dependencies": {
+    "extract-zip": "^2.0.1",
+    "tar": "^7.4.3"
+  }
+}

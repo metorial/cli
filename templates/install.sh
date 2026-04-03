@@ -195,7 +195,7 @@ ensure_path_in_shell_rc() {
 main() {
   need curl
 
-  printf 'Welcome to the Metorial CLI!\n'
+  printf 'Welcome to the \033[1;34mMetorial CLI\033[0m!\n'
 
   os=''
   os="$(detect_os)"
@@ -227,11 +227,9 @@ main() {
   install "$extract_dir/metorial" "$install_dir/metorial"
   stop_spinner
 
-  printf '\rSuccessfully installed Metorial CLI (%s)\n' "$version"
+  printf '\rSuccessfully installed \033[1;34mMetorial CLI\033[0m (%s)\n' "$version"
   printf "Get started by running 'metorial'\n"
   ensure_path_in_shell_rc "$install_dir"
-
-  "${install_dir}/metorial" version
 }
 
 main "$@"
