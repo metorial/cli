@@ -37,6 +37,7 @@ type integrationToolsProvider struct {
 
 type integrationListRow struct {
 	Id          string `json:"id"`
+	Alias       string `json:"alias,omitempty"`
 	Status      string `json:"status"`
 	Name        string `json:"name,omitempty"`
 	Description string `json:"description,omitempty"`
@@ -55,6 +56,13 @@ type integrationCallOptions struct {
 	Data string
 }
 
+type paginationOptions struct {
+	Limit  float64
+	After  string
+	Before string
+	Cursor string
+}
+
 func newIntegrationsCommand(application *app.App, rootOptions *rootOptions) *cobra.Command {
 	command := &cobra.Command{
 		Use:     "integrations",
@@ -62,7 +70,10 @@ func newIntegrationsCommand(application *app.App, rootOptions *rootOptions) *cob
 		Short:   "Browse and set up consumer-owned integrations",
 	}
 
-	command.AddCommand(&cobra.Command{
+	integrationListPagination := paginationOptions{Limit: 15}
+	catalogPagination := paginationOptions{Limit: 15}
+
+	listCommand := &cobra.Command{
 		Use:   "list [search]",
 		Short: "List integrations owned by your consumer",
 		Args:  cobra.RangeArgs(0, 1),
@@ -81,9 +92,8 @@ func newIntegrationsCommand(application *app.App, rootOptions *rootOptions) *cob
 				return err
 			}
 
-			params := &endpoints.MagicMcpServersEndpointListParams{
-				Limit: float64Ptr(15),
-			}
+			params := &endpoints.MagicMcpServersEndpointListParams{}
+			applyPaginationOptionsToMagicMcpServers(params, integrationListPagination)
 			if search := strings.TrimSpace(optionalArg(args, 0)); search != "" {
 				params.Search = &search
 			}
@@ -97,6 +107,7 @@ func newIntegrationsCommand(application *app.App, rootOptions *rootOptions) *cob
 			for _, item := range result.Items {
 				rows = append(rows, integrationListRow{
 					Id:          item.Id,
+					Alias:       primaryServerAlias(item.Endpoints),
 					Status:      item.Status,
 					Name:        optionalString(item.Name),
 					Description: optionalString(item.Description),
@@ -109,7 +120,9 @@ func newIntegrationsCommand(application *app.App, rootOptions *rootOptions) *cob
 				identifier := integrationListIdentifier(result.Items[0])
 				tips = append(tips, fmt.Sprintf("metorial integrations get %s", identifier))
 				tips = append(tips, fmt.Sprintf("metorial integrations tools %s", identifier))
+				tips = append(tips, fmt.Sprintf("metorial integrations install codex %s", identifier))
 			}
+			tips = append(tips, paginationTipsForIntegrationList(args, integrationListPagination, result.Items, result.Pagination)...)
 			tips = append(tips, "metorial integrations catalog list")
 
 			format, err := output.ParseFormat(rootOptions.format)
@@ -134,7 +147,9 @@ func newIntegrationsCommand(application *app.App, rootOptions *rootOptions) *cob
 
 			return renderIntegrationsList(command.OutOrStdout(), application.StdoutFeatures(), consumer, rows, tips)
 		},
-	})
+	}
+	addPaginationFlags(listCommand, &integrationListPagination, "integrations")
+	command.AddCommand(listCommand)
 
 	command.AddCommand(&cobra.Command{
 		Use:   "get <magic-mcp-server-id>",
@@ -162,6 +177,8 @@ func newIntegrationsCommand(application *app.App, rootOptions *rootOptions) *cob
 
 			tips := []string{
 				fmt.Sprintf("metorial integrations tools %s", integrationGetIdentifier(server)),
+				fmt.Sprintf("metorial integrations install codex %s", integrationGetIdentifier(server)),
+				fmt.Sprintf("metorial integrations install custom %s", integrationGetIdentifier(server)),
 			}
 
 			format, err := output.ParseFormat(rootOptions.format)
@@ -288,6 +305,8 @@ func newIntegrationsCommand(application *app.App, rootOptions *rootOptions) *cob
 			tips := []string{
 				fmt.Sprintf("metorial integrations get %s", integrationCreateIdentifier(server)),
 				fmt.Sprintf("metorial integrations tools %s", integrationCreateIdentifier(server)),
+				fmt.Sprintf("metorial integrations install codex %s", integrationCreateIdentifier(server)),
+				fmt.Sprintf("metorial integrations install custom %s", integrationCreateIdentifier(server)),
 			}
 			if finalListing != nil {
 				tips = append(tips, fmt.Sprintf("metorial integrations catalog get %s", finalListing.Slug))
@@ -325,9 +344,8 @@ func newIntegrationsCommand(application *app.App, rootOptions *rootOptions) *cob
 			return err
 		}
 
-		params := &endpoints.ProviderListingsEndpointListParams{
-			Limit: float64Ptr(15),
-		}
+		params := &endpoints.ProviderListingsEndpointListParams{}
+		applyPaginationOptionsToProviderListings(params, catalogPagination)
 		if search := strings.TrimSpace(optionalArg(args, 0)); search != "" {
 			params.Search = &search
 		}
@@ -353,6 +371,7 @@ func newIntegrationsCommand(application *app.App, rootOptions *rootOptions) *cob
 			tips = append(tips, fmt.Sprintf("metorial integrations catalog get %s", result.Items[0].Slug))
 			tips = append(tips, fmt.Sprintf("metorial integrations setup %s", result.Items[0].Slug))
 		}
+		tips = append(tips, paginationTipsForCatalogList(command, args, catalogPagination, result.Items, result.Pagination)...)
 
 		format, err := output.ParseFormat(rootOptions.format)
 		if err != nil {
@@ -377,12 +396,16 @@ func newIntegrationsCommand(application *app.App, rootOptions *rootOptions) *cob
 		Args:  cobra.RangeArgs(0, 1),
 		RunE:  runCatalogList,
 	})
-	catalogCommand.AddCommand(&cobra.Command{
+	addPaginationFlags(catalogCommand.Commands()[0], &catalogPagination, "provider listings")
+
+	catalogSearchCommand := &cobra.Command{
 		Use:   "search [search]",
 		Short: "Search provider listings in the integration catalog",
 		Args:  cobra.RangeArgs(0, 1),
 		RunE:  runCatalogList,
-	})
+	}
+	addPaginationFlags(catalogSearchCommand, &catalogPagination, "provider listings")
+	catalogCommand.AddCommand(catalogSearchCommand)
 	catalogCommand.AddCommand(&cobra.Command{
 		Use:   "get <provider-listing-slug-or-id>",
 		Short: "Show a provider listing and its tools",
@@ -430,12 +453,179 @@ func newIntegrationsCommand(application *app.App, rootOptions *rootOptions) *cob
 	})
 
 	command.AddCommand(catalogCommand)
-	command.AddCommand(&cobra.Command{
+	searchCommand := &cobra.Command{
 		Use:   "search [search]",
 		Short: "Search provider listings in the integration catalog",
 		Args:  cobra.RangeArgs(0, 1),
 		RunE:  runCatalogList,
+	}
+	addPaginationFlags(searchCommand, &catalogPagination, "provider listings")
+	command.AddCommand(searchCommand)
+
+	clientCommand := &cobra.Command{
+		Use:   "client",
+		Short: "Inspect supported local MCP clients",
+	}
+	clientCommand.AddCommand(&cobra.Command{
+		Use:   "list",
+		Short: "List supported MCP clients and installation availability",
+		RunE: func(command *cobra.Command, args []string) error {
+			rows := integrationClientRows()
+			tips := []string{
+				"metorial integrations install codex <integration-id>",
+				"metorial integrations install custom <integration-id>",
+			}
+
+			format, err := output.ParseFormat(rootOptions.format)
+			if err != nil {
+				return err
+			}
+			if format != output.FormatStructured {
+				return writeValue(command.OutOrStdout(), application.StdoutFeatures(), rootOptions.format, map[string]any{
+					"items": rows,
+					"tips":  tips,
+				})
+			}
+
+			return renderIntegrationClientList(command.OutOrStdout(), application.StdoutFeatures(), rows, tips)
+		},
 	})
+	command.AddCommand(clientCommand)
+
+	installCommand := &cobra.Command{
+		Use:   "install <client-identifier> <magic-mcp-server-id>",
+		Short: "Install an integration into a local MCP client",
+		Args:  cobra.ExactArgs(2),
+		RunE: func(command *cobra.Command, args []string) error {
+			runtime, err := application.ResolveConfig(rootOptions.apiKey, rootOptions.apiHost, rootOptions.profile, rootOptions.instance)
+			if err != nil {
+				return err
+			}
+
+			consumer, err := getCLIMemberConsumer(runtime)
+			if err != nil {
+				return err
+			}
+			consumerSDK, err := newConsumerProfileSDK(runtime, consumer.Profile.Id)
+			if err != nil {
+				return err
+			}
+
+			server, err := consumerSDK.MagicMcpServers.Get(args[1])
+			if err != nil {
+				return err
+			}
+
+			adapter, err := integrationClientByID(args[0])
+			if err != nil {
+				return err
+			}
+			detection := adapter.detect()
+			if !detection.Usable {
+				return fmt.Errorf("metorial: %s is not installed or cannot be used on this system. Run `metorial integrations client list` for supported clients", adapter.label())
+			}
+
+			token, err := createMagicMcpInstallToken(consumerSDK, server.Id)
+			if err != nil {
+				return err
+			}
+			endpointURL, err := buildMagicMcpInstallURL(server, token.Secret)
+			if err != nil {
+				return err
+			}
+
+			transport := selectInstallTransport(adapter.capabilities())
+			plan, err := adapter.buildInstallPlan(remoteServerDefinition{
+				Name:      integrationGetIdentifier(server),
+				URL:       endpointURL,
+				Transport: transport,
+			})
+			if err != nil {
+				return err
+			}
+
+			if err := executeIntegrationInstallPlan(plan); err != nil {
+				return err
+			}
+
+			result := integrationInstallResult{
+				Client:      adapter.label(),
+				Method:      string(plan.method()),
+				Transport:   string(plan.transport()),
+				Integration: integrationGetIdentifier(server),
+				EndpointURL: endpointURL,
+				TokenID:     token.Id,
+			}
+			switch typed := plan.(type) {
+			case commandInstallPlan:
+				result.Command = &typed
+			case fileInstallPlan:
+				result.File = &typed
+			}
+
+			format, err := output.ParseFormat(rootOptions.format)
+			if err != nil {
+				return err
+			}
+			if format != output.FormatStructured {
+				return writeValue(command.OutOrStdout(), application.StdoutFeatures(), rootOptions.format, result)
+			}
+			return renderIntegrationInstallResult(command.OutOrStdout(), application.StdoutFeatures(), result)
+		},
+	}
+	installCommand.AddCommand(&cobra.Command{
+		Use:   "custom <magic-mcp-server-id>",
+		Short: "Create a custom installation token and show the endpoint details",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(command *cobra.Command, args []string) error {
+			runtime, err := application.ResolveConfig(rootOptions.apiKey, rootOptions.apiHost, rootOptions.profile, rootOptions.instance)
+			if err != nil {
+				return err
+			}
+
+			consumer, err := getCLIMemberConsumer(runtime)
+			if err != nil {
+				return err
+			}
+			consumerSDK, err := newConsumerProfileSDK(runtime, consumer.Profile.Id)
+			if err != nil {
+				return err
+			}
+
+			server, err := consumerSDK.MagicMcpServers.Get(args[0])
+			if err != nil {
+				return err
+			}
+			token, err := createMagicMcpInstallToken(consumerSDK, server.Id)
+			if err != nil {
+				return err
+			}
+			endpointURL, err := buildMagicMcpInstallURL(server, token.Secret)
+			if err != nil {
+				return err
+			}
+
+			result := integrationInstallResult{
+				Client:      "custom",
+				Method:      "custom",
+				Transport:   string(installTransportStreamableHTTP),
+				Integration: integrationGetIdentifier(server),
+				EndpointURL: endpointURL,
+				TokenID:     token.Id,
+				Token:       token.Secret,
+			}
+
+			format, err := output.ParseFormat(rootOptions.format)
+			if err != nil {
+				return err
+			}
+			if format != output.FormatStructured {
+				return writeValue(command.OutOrStdout(), application.StdoutFeatures(), rootOptions.format, result)
+			}
+			return renderCustomInstallResult(command.OutOrStdout(), application.StdoutFeatures(), result)
+		},
+	})
+	command.AddCommand(installCommand)
 
 	command.AddCommand(&cobra.Command{
 		Use:   "tools <magic-mcp-server-id>",
@@ -528,6 +718,8 @@ func newIntegrationsCommand(application *app.App, rootOptions *rootOptions) *cob
 			if len(liveTools) > 0 {
 				identifier := integrationGetIdentifier(server)
 				toolKey := liveTools[0].Name
+				tips = append(tips, fmt.Sprintf("metorial integrations install codex %s", identifier))
+				tips = append(tips, fmt.Sprintf("metorial integrations install custom %s", identifier))
 				tips = append(tips, fmt.Sprintf("metorial integrations schema %s %s", identifier, toolKey))
 				tips = append(tips, fmt.Sprintf("metorial integrations call %s %s --data '{}'", identifier, toolKey))
 			}
@@ -637,6 +829,8 @@ func newIntegrationsCommand(application *app.App, rootOptions *rootOptions) *cob
 			"list [search]                 List integrations owned by your consumer",
 			"search [search]               Shortcut for catalog search",
 			"setup [listing]               Create and finish an integration setup session",
+			"install <client> <id>         Install an integration into a local client",
+			"client list                   List supported local MCP clients",
 			"schema <integration> <tool>   Show the MCP input schema for a tool",
 			"call <integration> <tool>     Validate input and call a tool over MCP",
 			"catalog list [search]         Browse installable provider listings",
@@ -1232,13 +1426,18 @@ func renderIntegrationsList(writer io.Writer, features terminal.Features, consum
 	}
 
 	for _, row := range rows {
-		name := row.Id
+		identifier := strings.TrimSpace(row.Alias)
+		if identifier == "" {
+			identifier = row.Id
+		}
+
+		name := identifier
 		if strings.TrimSpace(row.Name) != "" {
-			name = colors.Bold(row.Name) + "\n" + colors.Muted(row.Id)
+			name = colors.Bold(row.Name) + "\n" + colors.Muted(identifier)
 		}
 
 		table.Rows = append(table.Rows, []string{
-			name,
+			name + "\n",
 			row.Status,
 			row.EndpointUrl,
 			row.Description,
@@ -1560,6 +1759,135 @@ func primaryServerURL(endpoints []magicmcpservers.MagicMcpServersListOutputItems
 		return ""
 	}
 	return endpoints[0].Url
+}
+
+func addPaginationFlags(command *cobra.Command, options *paginationOptions, label string) {
+	command.Flags().Float64Var(&options.Limit, "limit", options.Limit, "Limit the number of "+label)
+	command.Flags().StringVar(&options.After, "after", "", "Fetch "+label+" after this cursor")
+	command.Flags().StringVar(&options.Before, "before", "", "Fetch "+label+" before this cursor")
+	command.Flags().StringVar(&options.Cursor, "cursor", "", "Fetch "+label+" using an opaque cursor")
+}
+
+func applyPaginationOptionsToMagicMcpServers(params *endpoints.MagicMcpServersEndpointListParams, options paginationOptions) {
+	params.Limit = float64Ptr(options.Limit)
+	if after := strings.TrimSpace(options.After); after != "" {
+		params.After = &after
+	}
+	if before := strings.TrimSpace(options.Before); before != "" {
+		params.Before = &before
+	}
+	if cursor := strings.TrimSpace(options.Cursor); cursor != "" {
+		params.Cursor = &cursor
+	}
+}
+
+func applyPaginationOptionsToProviderListings(params *endpoints.ProviderListingsEndpointListParams, options paginationOptions) {
+	params.Limit = float64Ptr(options.Limit)
+	if after := strings.TrimSpace(options.After); after != "" {
+		params.After = &after
+	}
+	if before := strings.TrimSpace(options.Before); before != "" {
+		params.Before = &before
+	}
+	if cursor := strings.TrimSpace(options.Cursor); cursor != "" {
+		params.Cursor = &cursor
+	}
+}
+
+func paginationTipsForIntegrationList(args []string, options paginationOptions, items []magicmcpservers.MagicMcpServersListOutputItems, pagination magicmcpservers.MagicMcpServersListOutputPagination) []string {
+	if len(items) == 0 {
+		return nil
+	}
+
+	var tips []string
+	search := strings.TrimSpace(optionalArg(args, 0))
+	base := "metorial integrations list"
+	if search != "" {
+		base += " " + shellQuote(search)
+	}
+	base += paginationFlagString(options, true, true)
+
+	if pagination.HasMoreAfter {
+		tips = append(tips, fmt.Sprintf("%s --after %s", base, shellQuote(items[len(items)-1].Id)))
+	}
+	if pagination.HasMoreBefore {
+		tips = append(tips, fmt.Sprintf("%s --before %s", base, shellQuote(items[0].Id)))
+	}
+	return tips
+}
+
+func paginationTipsForCatalogList(command *cobra.Command, args []string, options paginationOptions, items []providerlistings.ProviderListingsListOutputItems, pagination providerlistings.ProviderListingsListOutputPagination) []string {
+	if len(items) == 0 {
+		return nil
+	}
+
+	var tips []string
+	search := strings.TrimSpace(optionalArg(args, 0))
+	base := "metorial integrations"
+	if command != nil && command.Parent() != nil && command.Parent().Name() == "catalog" {
+		base += " catalog"
+	}
+	base += " list"
+	if command != nil && command.Name() == "search" {
+		base = strings.TrimSuffix(base, " list") + " search"
+	}
+	if search != "" {
+		base += " " + shellQuote(search)
+	}
+	base += paginationFlagString(options, true, true)
+
+	if pagination.HasMoreAfter {
+		tips = append(tips, fmt.Sprintf("%s --after %s", base, shellQuote(items[len(items)-1].Id)))
+	}
+	if pagination.HasMoreBefore {
+		tips = append(tips, fmt.Sprintf("%s --before %s", base, shellQuote(items[0].Id)))
+	}
+	return tips
+}
+
+func paginationFlagString(options paginationOptions, includeAfter bool, includeBefore bool) string {
+	parts := make([]string, 0, 3)
+	if options.Limit > 0 && options.Limit != 15 {
+		parts = append(parts, fmt.Sprintf("--limit %s", formatPaginationLimit(options.Limit)))
+	}
+	if cursor := strings.TrimSpace(options.Cursor); cursor != "" {
+		parts = append(parts, fmt.Sprintf("--cursor %s", shellQuote(cursor)))
+	}
+	if includeAfter {
+		if before := strings.TrimSpace(options.Before); before != "" {
+			parts = append(parts, fmt.Sprintf("--before %s", shellQuote(before)))
+		}
+	}
+	if includeBefore {
+		if after := strings.TrimSpace(options.After); after != "" {
+			parts = append(parts, fmt.Sprintf("--after %s", shellQuote(after)))
+		}
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return " " + strings.Join(parts, " ")
+}
+
+func formatPaginationLimit(limit float64) string {
+	return strings.TrimSuffix(strings.TrimSuffix(fmt.Sprintf("%.2f", limit), "0"), ".")
+}
+
+func shellQuote(value string) string {
+	if value == "" {
+		return "''"
+	}
+	if !strings.ContainsAny(value, " \t\n'\"\\") {
+		return value
+	}
+	return "'" + strings.ReplaceAll(value, "'", `'"'"'`) + "'"
+}
+
+func primaryServerAlias(endpoints []magicmcpservers.MagicMcpServersListOutputItemsEndpoints) string {
+	if len(endpoints) == 0 {
+		return ""
+	}
+	return strings.TrimSpace(endpoints[0].Alias)
 }
 
 func integrationListIdentifier(server magicmcpservers.MagicMcpServersListOutputItems) string {
