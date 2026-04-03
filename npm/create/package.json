@@ -1,0 +1,21 @@
+{
+  "name": "create-metorial",
+  "version": "0.0.0-dev",
+  "description": "npm create entrypoint for Metorial examples",
+  "license": "MIT",
+  "bin": {
+    "create-metorial": "./dist/bin.cjs"
+  },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsup --config tsup.config.ts"
+  },
+  "dependencies": {
+    "@metorial/cli-core": "workspace:*"
+  }
+}

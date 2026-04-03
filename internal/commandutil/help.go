@@ -86,7 +86,7 @@ func HelpTemplate() string {
 {{helpHeading "Integrations:"}}
 {{renderIntegrationSection .Commands}}{{end}}{{if hasCommandCategory .Commands "resource"}}
 
-{{helpHeading "Resource Commands:"}}
+{{helpHeading "Resource Admin Commands:"}}
 {{renderCommandSection .Commands "resource"}}{{end}}{{end}}{{if commandAnnotation . "metorial:arguments"}}
 
 {{helpHeading "Arguments:"}}
@@ -116,7 +116,7 @@ func UsageTemplate() string {
 {{helpHeading "Integrations:"}}
 {{renderIntegrationSection .Commands}}{{end}}{{if hasCommandCategory .Commands "resource"}}
 
-{{helpHeading "Resource Commands:"}}
+{{helpHeading "Resource Admin Commands:"}}
 {{renderCommandSection .Commands "resource"}}{{end}}{{end}}{{if .HasAvailableLocalFlags}}
 
 {{helpHeading "Flags:"}}

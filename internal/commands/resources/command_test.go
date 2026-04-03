@@ -54,8 +54,8 @@ func TestRootHelpSeparatesResourceCommands(t *testing.T) {
 	if !strings.Contains(output, "Commands:\n") {
 		t.Fatalf("help output missing Commands section:\n%s", output)
 	}
-	if !strings.Contains(output, "Resource Commands:\n") {
-		t.Fatalf("help output missing Resource Commands section:\n%s", output)
+	if !strings.Contains(output, "Resource Admin Commands:\n") {
+		t.Fatalf("help output missing Resource Admin Commands section:\n%s", output)
 	}
 	if strings.Contains(output, "Commands:\n  providers") {
 		t.Fatalf("providers unexpectedly listed in general Commands section:\n%s", output)

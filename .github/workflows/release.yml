@@ -18,6 +18,7 @@ jobs:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_PAGES_PROJECT: 'metorial-cli'
       GITHUB_TOKEN: ${{ github.token }}
+      NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
       HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
       SCOOP_BUCKET_GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
       CHOCOLATEY_API_KEY: ${{ secrets.CHOCOLATEY_API_KEY }}
@@ -35,10 +36,19 @@ jobs:
         with:
           go-version-file: go.mod
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org
+
       - name: Install Bun
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: '1.2.20'
+
+      - name: Install npm workspace dependencies
+        run: bun install --frozen-lockfile
 
       - name: Resolve GoReleaser skip flags
         shell: bash
@@ -74,6 +84,15 @@ jobs:
           distribution: goreleaser
           version: '~> v2'
           args: release --clean ${{ env.GORELEASER_SKIP_ARGS }}
+
+      - name: Set npm package versions
+        run: bun run set-npm-version -- "${GITHUB_REF_NAME#v}"
+
+      - name: Build npm packages
+        run: bun run build:npm
+
+      - name: Publish npm packages
+        run: bun run publish:npm
 
       - name: Build hosted installer site
         run: bun ./scripts/build-public.ts
