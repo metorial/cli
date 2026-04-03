@@ -7,18 +7,78 @@ REQUESTED_VERSION="${METORIAL_CLI_VERSION:-${VERSION:-}}"
 RELEASE_ROOT="${BASE_URL%/}/metorial-cli"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
+SPINNER_PID=''
+SPINNER_MESSAGE=''
 
 log() {
   printf '%s\n' "$*"
 }
 
 fail() {
-  printf 'Error: %s\n' "$*" >&2
+  stop_spinner
+  printf '\n[error] %s\n' "$*" >&2
   exit 1
+}
+
+warn() {
+  printf '[warning] %s\n' "$*"
+}
+
+info() {
+  printf '[info] %s\n' "$*"
+}
+
+start_spinner() {
+  SPINNER_MESSAGE="$1"
+  (
+    while :; do
+      printf '\r%s [|]' "$SPINNER_MESSAGE"
+      sleep 0.1
+      printf '\r%s [/]' "$SPINNER_MESSAGE"
+      sleep 0.1
+      printf '\r%s [-]' "$SPINNER_MESSAGE"
+      sleep 0.1
+      printf '\r%s [\\]' "$SPINNER_MESSAGE"
+      sleep 0.1
+    done
+  ) &
+  SPINNER_PID=$!
+}
+
+stop_spinner() {
+  if [ -n "${SPINNER_PID:-}" ]; then
+    kill "$SPINNER_PID" >/dev/null 2>&1 || true
+    wait "$SPINNER_PID" 2>/dev/null || true
+    SPINNER_PID=''
+  fi
 }
 
 need() {
   command -v "$1" >/dev/null 2>&1 || fail "Missing required command: $1"
+}
+
+resolve_shell_rc() {
+  current_shell=''
+
+  current_shell="${SHELL##*/}"
+
+  case "$current_shell" in
+    bash) printf '%s/.bashrc' "$HOME" ;;
+    zsh) printf '%s/.zshrc' "$HOME" ;;
+    *)
+      if [ -f "${HOME}/.bashrc" ]; then
+        printf '%s/.bashrc' "$HOME"
+        return
+      fi
+
+      if [ -f "${HOME}/.zshrc" ]; then
+        printf '%s/.zshrc' "$HOME"
+        return
+      fi
+
+      printf '%s/.profile' "$HOME"
+      ;;
+  esac
 }
 
 detect_os() {
@@ -101,8 +161,41 @@ extract_archive() {
   tar -xzf "$archive_path" -C "$destination"
 }
 
+ensure_path_in_shell_rc() {
+  install_dir="$1"
+  rc_file=''
+  export_line=''
+
+  case ":$PATH:" in
+    *":${install_dir}:"*) return ;;
+  esac
+
+  rc_file="$(resolve_shell_rc)"
+  export_line="export PATH=\"${install_dir}:\$PATH\""
+
+  mkdir -p "$(dirname "$rc_file")"
+  touch "$rc_file"
+
+  if grep -Fq "$export_line" "$rc_file"; then
+    warn "Your shell config already includes ${install_dir}, but your current shell has not loaded it yet."
+    info "Run 'source ${rc_file}' or open a new terminal before using 'metorial'."
+    return
+  fi
+
+  {
+    printf '\n'
+    printf '# Added by Metorial CLI installer\n'
+    printf '%s\n' "$export_line"
+  } >> "$rc_file"
+
+  warn "Added ${install_dir} to PATH in ${rc_file}."
+  info "Run 'source ${rc_file}' or open a new terminal before using 'metorial'."
+}
+
 main() {
   need curl
+
+  printf 'Welcome to the Metorial CLI!\n'
 
   os=''
   os="$(detect_os)"
@@ -123,7 +216,7 @@ main() {
   install_dir=''
   install_dir="$(resolve_install_dir)"
 
-  log "Downloading Metorial CLI ${version} for ${os}/${arch}"
+  start_spinner "Downloading version ${version}"
   curl -fsSL "${release_base}/${archive_name}" -o "$archive_path"
   curl -fsSL "${release_base}/checksums.txt" -o "$checksum_path"
 
@@ -132,15 +225,11 @@ main() {
 
   mkdir -p "$install_dir"
   install "$extract_dir/metorial" "$install_dir/metorial"
+  stop_spinner
 
-  log "Installed metorial to ${install_dir}/metorial"
-
-  case ":$PATH:" in
-    *":${install_dir}:"*) ;;
-    *)
-      log "Add ${install_dir} to your PATH if it is not already available."
-      ;;
-  esac
+  printf '\rSuccessfully installed Metorial CLI (%s)\n' "$version"
+  printf "Get started by running 'metorial'\n"
+  ensure_path_in_shell_rc "$install_dir"
 
   "${install_dir}/metorial" version
 }
