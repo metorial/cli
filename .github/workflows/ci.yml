@@ -1,0 +1,57 @@
+name: '[CI] Metorial CLI'
+
+on:
+  pull_request:
+  push:
+    branches:
+      - '**'
+    tags-ignore:
+      - 'v*'
+
+jobs:
+  test:
+    name: 'Test CLI'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GH_TOKEN != '' && secrets.GH_TOKEN || github.token }}
+
+      - name: Checkout SDK source
+        uses: actions/checkout@v4
+        with:
+          repository: metorial/metorial-enterprise
+          path: metorial-enterprise
+          fetch-depth: 1
+          sparse-checkout: |
+            oss/clients/metorial-go
+          token: ${{ secrets.GH_TOKEN != '' && secrets.GH_TOKEN || github.token }}
+
+      - name: Link SDK dependency
+        shell: bash
+        run: |
+          mkdir -p ../clients
+          ln -sfn "$GITHUB_WORKSPACE/metorial-enterprise/oss/clients/metorial-go" ../clients/metorial-go
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Verify formatting
+        shell: bash
+        run: |
+          unformatted="$(gofmt -l $(find . -name '*.go' -print))"
+          if [ -n "$unformatted" ]; then
+            printf 'These files need gofmt:\n%s\n' "$unformatted" >&2
+            exit 1
+          fi
+
+      - name: Run tests
+        run: go test ./...
+
+      - name: Build CLI
+        run: go build ./cmd/metorial
