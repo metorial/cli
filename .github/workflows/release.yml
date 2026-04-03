@@ -1,12 +1,6 @@
 name: '[RELEASE] Metorial CLI'
 
 on:
-  workflow_dispatch:
-    inputs:
-      version:
-        description: 'CLI version without a leading v'
-        required: true
-        type: string
   push:
     tags:
       - 'v*'
@@ -25,9 +19,10 @@ jobs:
       CLOUDFLARE_PAGES_PROJECT: ${{ secrets.CLOUDFLARE_CLI_PAGES_PROJECT != '' && secrets.CLOUDFLARE_CLI_PAGES_PROJECT || 'metorial-cli' }}
       GITHUB_TOKEN: ${{ secrets.GH_TOKEN != '' && secrets.GH_TOKEN || github.token }}
       HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
-      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
       SCOOP_BUCKET_GITHUB_TOKEN: ${{ secrets.SCOOP_BUCKET_GITHUB_TOKEN }}
       CHOCOLATEY_API_KEY: ${{ secrets.CHOCOLATEY_API_KEY }}
+      GITHUB_REPOSITORY_OWNER: metorial
+      GITHUB_REPOSITORY_NAME: cli
 
     steps:
       - name: Checkout repository
@@ -35,21 +30,6 @@ jobs:
         with:
           fetch-depth: 0
           token: ${{ secrets.GH_TOKEN != '' && secrets.GH_TOKEN || github.token }}
-
-      - name: Resolve release version
-        shell: bash
-        run: |
-          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
-            RAW_VERSION="${{ inputs.version }}"
-            RAW_VERSION="${RAW_VERSION#v}"
-            TAG="v${RAW_VERSION}"
-          else
-            TAG="${GITHUB_REF_NAME}"
-            RAW_VERSION="${TAG#v}"
-          fi
-
-          echo "CLI_TAG=${TAG}" >> "$GITHUB_ENV"
-          echo "CLI_VERSION=${RAW_VERSION}" >> "$GITHUB_ENV"
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -60,7 +40,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          registry-url: https://registry.npmjs.org
 
       - name: Install Bun
         uses: oven-sh/setup-bun@v2
@@ -74,19 +53,8 @@ jobs:
           version: '~> v2'
           args: release --clean
 
-      - name: Lock npm wrapper version
-        run: node ./scripts/set-npm-version.mjs "${CLI_VERSION}"
-
-      - name: Publish npm package
-        working-directory: npm
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm publish --access public
-
       - name: Build hosted installer site
-        env:
-          RELEASE_VERSION: ${{ env.CLI_VERSION }}
-        run: node ./scripts/build-public.mjs
+        run: bun ./scripts/build-public.ts
 
       - name: Upload installer site artifact
         uses: actions/upload-artifact@v4

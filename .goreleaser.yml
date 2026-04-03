@@ -7,7 +7,7 @@ dist: dist
 release:
   github:
     owner: metorial
-    name: metorial-enterprise
+    name: cli
   draft: false
   replace_existing_draft: true
 
@@ -39,7 +39,7 @@ archives:
   - id: default
     builds:
       - metorial
-    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    name_template: '{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}'
     formats:
       - tar.gz
     format_overrides:
@@ -55,15 +55,15 @@ brews:
     repository:
       owner: metorial
       name: homebrew-tap
-      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+      token: '{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}'
     directory: Formula
     homepage: https://metorial.com
     description: Official CLI for the Metorial platform
     license: MIT
-    skip_upload: "{{ eq .Env.HOMEBREW_TAP_GITHUB_TOKEN \"\" }}"
+    skip_upload: '{{ eq .Env.HOMEBREW_TAP_GITHUB_TOKEN "" }}'
     commit_author:
       name: metorial-bot
-      email: engineering@metorial.com
+      email: hey@metorial.com
     test: |
       system "#{bin}/metorial", "version"
     install: |
@@ -74,33 +74,33 @@ scoops:
     repository:
       owner: metorial
       name: scoop-bucket
-      token: "{{ .Env.SCOOP_BUCKET_GITHUB_TOKEN }}"
+      token: '{{ .Env.SCOOP_BUCKET_GITHUB_TOKEN }}'
     homepage: https://metorial.com
     description: Official CLI for the Metorial platform
     license: MIT
-    skip_upload: "{{ eq .Env.SCOOP_BUCKET_GITHUB_TOKEN \"\" }}"
+    skip_upload: '{{ eq .Env.SCOOP_BUCKET_GITHUB_TOKEN "" }}'
     commit_author:
       name: metorial-bot
-      email: engineering@metorial.com
+      email: hey@metorial.com
 
 chocolateys:
   - name: metorial
     title: Metorial CLI
     authors: Metorial Inc.
     project_url: https://metorial.com
-    url_template: "https://github.com/metorial/metorial-enterprise/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
+    url_template: 'https://github.com/metorial/cli/releases/download/{{ .Tag }}/{{ .ArtifactName }}'
     copyright: 2026 Metorial Inc.
-    license_url: https://github.com/metorial/metorial-enterprise/blob/main/LICENSE
-    project_source_url: https://github.com/metorial/metorial-enterprise
+    license_url: https://github.com/metorial/cli/blob/main/LICENSE
+    project_source_url: https://github.com/metorial/cli
     docs_url: https://metorial.com/docs
-    bug_tracker_url: https://github.com/metorial/metorial-enterprise/issues
-    release_notes: https://github.com/metorial/metorial-enterprise/releases/tag/{{ .Tag }}
+    bug_tracker_url: https://github.com/metorial/cli/issues
+    release_notes: https://github.com/metorial/cli/releases/tag/{{ .Tag }}
     summary: Official CLI for the Metorial platform
     description: The Metorial CLI lets you authenticate, inspect resources, and work with the Metorial platform from your terminal.
     tags: metorial cli ai mcp
-    api_key: "{{ .Env.CHOCOLATEY_API_KEY }}"
+    api_key: '{{ .Env.CHOCOLATEY_API_KEY }}'
     source_repo: https://push.chocolatey.org/
-    skip_publish: "{{ eq .Env.CHOCOLATEY_API_KEY \"\" }}"
+    skip_publish: '{{ eq .Env.CHOCOLATEY_API_KEY "" }}'
 
 changelog:
   sort: asc

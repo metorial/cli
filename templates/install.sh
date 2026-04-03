@@ -4,6 +4,7 @@ set -euo pipefail
 
 BASE_URL="${METORIAL_CLI_BASE_URL:-https://cli.metorial.com}"
 REQUESTED_VERSION="${METORIAL_CLI_VERSION:-${VERSION:-}}"
+RELEASE_ROOT="${BASE_URL%/}/metorial-cli"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
@@ -40,12 +41,12 @@ detect_arch() {
 
 resolve_version() {
   if [ -n "$REQUESTED_VERSION" ]; then
-    printf '%s' "${REQUESTED_VERSION#v}"
+    printf '%s' "v${REQUESTED_VERSION#v}"
     return
   fi
 
   need curl
-  curl -fsSL "$BASE_URL/releases/latest.json" | sed -n 's/.*"version":[[:space:]]*"\([^"]*\)".*/\1/p' | head -n 1
+  curl -fsSL "${RELEASE_ROOT}/latest" | tr -d '\r' | head -n 1
 }
 
 resolve_install_dir() {
@@ -113,8 +114,9 @@ main() {
   version="$(resolve_version)"
   [ -n "$version" ] || fail 'Unable to resolve the latest CLI version'
 
-  archive_name="metorial_${version}_${os}_${arch}.tar.gz"
-  release_base="${BASE_URL}/releases/download/v${version}"
+  normalized_version="${version#v}"
+  archive_name="metorial_${normalized_version}_${os}_${arch}.tar.gz"
+  release_base="${RELEASE_ROOT}/${version}"
   archive_path="${TMP_DIR}/${archive_name}"
   checksum_path="${TMP_DIR}/checksums.txt"
   extract_dir="${TMP_DIR}/extract"
