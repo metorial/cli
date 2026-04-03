@@ -128,6 +128,10 @@ resolve_install_dir() {
   printf '%s/.local/bin' "$HOME"
 }
 
+resolve_managed_bin_path() {
+  printf '%s/.metorial/cli/metorial' "$HOME"
+}
+
 verify_checksum() {
   checksum_file="$1"
   archive_name="$2"
@@ -215,6 +219,9 @@ main() {
   extract_dir="${TMP_DIR}/extract"
   install_dir=''
   install_dir="$(resolve_install_dir)"
+  managed_bin_path=''
+  managed_bin_path="$(resolve_managed_bin_path)"
+  symlink_path="${install_dir}/metorial"
 
   start_spinner "Downloading version ${version}"
   curl -fsSL "${release_base}/${archive_name}" -o "$archive_path"
@@ -223,12 +230,16 @@ main() {
   verify_checksum "$checksum_path" "$archive_name" "$archive_path"
   extract_archive "$archive_path" "$extract_dir"
 
+  mkdir -p "$(dirname "$managed_bin_path")"
   mkdir -p "$install_dir"
-  install "$extract_dir/metorial" "$install_dir/metorial"
+  install "$extract_dir/metorial" "$managed_bin_path"
+  ln -sfn "$managed_bin_path" "$symlink_path"
   stop_spinner
 
   printf '\rSuccessfully installed \033[1;34mMetorial CLI\033[0m (%s)\n' "$version"
   printf "Get started by running 'metorial'\n"
+  info "Managed binary: ${managed_bin_path}"
+  info "Command symlink: ${symlink_path}"
   ensure_path_in_shell_rc "$install_dir"
 }
 
