@@ -16,10 +16,10 @@ jobs:
     env:
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-      CLOUDFLARE_PAGES_PROJECT: ${{ secrets.CLOUDFLARE_CLI_PAGES_PROJECT != '' && secrets.CLOUDFLARE_CLI_PAGES_PROJECT || 'metorial-cli' }}
-      GITHUB_TOKEN: ${{ secrets.GH_TOKEN != '' && secrets.GH_TOKEN || github.token }}
-      HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
-      SCOOP_BUCKET_GITHUB_TOKEN: ${{ secrets.SCOOP_BUCKET_GITHUB_TOKEN }}
+      CLOUDFLARE_PAGES_PROJECT: 'metorial-cli'
+      GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+      HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+      SCOOP_BUCKET_GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
       CHOCOLATEY_API_KEY: ${{ secrets.CHOCOLATEY_API_KEY }}
       GITHUB_REPOSITORY_OWNER: metorial
       GITHUB_REPOSITORY_NAME: cli
@@ -29,7 +29,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.GH_TOKEN != '' && secrets.GH_TOKEN || github.token }}
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -41,12 +40,40 @@ jobs:
         with:
           bun-version: '1.2.20'
 
+      - name: Resolve GoReleaser skip flags
+        shell: bash
+        run: |
+          skips=()
+
+          if [[ "${GITHUB_REF_NAME}" == *-* ]]; then
+            skips+=(homebrew scoop chocolatey)
+          fi
+
+          if [[ -z "${HOMEBREW_TAP_GITHUB_TOKEN}" ]]; then
+            skips+=(homebrew)
+          fi
+
+          if [[ -z "${SCOOP_BUCKET_GITHUB_TOKEN}" ]]; then
+            skips+=(scoop)
+          fi
+
+          if [[ -z "${CHOCOLATEY_API_KEY}" ]]; then
+            skips+=(chocolatey)
+          fi
+
+          if [[ ${#skips[@]} -gt 0 ]]; then
+            unique_skips="$(printf '%s\n' "${skips[@]}" | awk '!seen[$0]++' | paste -sd, -)"
+            echo "GORELEASER_SKIP_ARGS=--skip=${unique_skips}" >> "$GITHUB_ENV"
+          else
+            echo "GORELEASER_SKIP_ARGS=" >> "$GITHUB_ENV"
+          fi
+
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v6
         with:
           distribution: goreleaser
           version: '~> v2'
-          args: release --clean
+          args: release --clean ${{ env.GORELEASER_SKIP_ARGS }}
 
       - name: Build hosted installer site
         run: bun ./scripts/build-public.ts

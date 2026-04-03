@@ -60,7 +60,6 @@ brews:
     homepage: https://metorial.com
     description: Official CLI for the Metorial platform
     license: MIT
-    skip_upload: '{{ eq .Env.HOMEBREW_TAP_GITHUB_TOKEN "" }}'
     commit_author:
       name: metorial-bot
       email: hey@metorial.com
@@ -78,7 +77,6 @@ scoops:
     homepage: https://metorial.com
     description: Official CLI for the Metorial platform
     license: MIT
-    skip_upload: '{{ eq .Env.SCOOP_BUCKET_GITHUB_TOKEN "" }}'
     commit_author:
       name: metorial-bot
       email: hey@metorial.com
@@ -100,7 +98,6 @@ chocolateys:
     tags: metorial cli ai mcp
     api_key: '{{ .Env.CHOCOLATEY_API_KEY }}'
     source_repo: https://push.chocolatey.org/
-    skip_publish: '{{ eq .Env.CHOCOLATEY_API_KEY "" }}'
 
 changelog:
   sort: asc

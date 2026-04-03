@@ -29,6 +29,7 @@ dist
 public
 .metorial
 npm/node_modules
+metorial
 
 # env file
 .env
