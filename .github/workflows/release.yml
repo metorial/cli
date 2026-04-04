@@ -94,6 +94,12 @@ jobs:
       - name: Publish npm packages
         run: bun run publish:npm
 
+      - name: Build browser shell
+        run: bun run build:browser-shell -- "${GITHUB_REF_NAME}"
+
+      - name: Upload browser shell release assets
+        run: gh release upload "${GITHUB_REF_NAME}" dist/browser-shell/* --clobber
+
       - name: Build hosted installer site
         run: bun ./scripts/build-public.ts
 

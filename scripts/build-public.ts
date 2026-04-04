@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 
-import { copyFile, mkdir, rm, writeFile } from 'node:fs/promises';
+import { cp, copyFile, mkdir, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -55,10 +55,13 @@ if (releases.length === 0) {
 
 let latestRelease = releases[0];
 let mirroredReleases: MirroredRelease[] = [];
+let latestBrowserShellDir = '';
 
 for (let release of releases) {
   let versionDir = path.join(publicDir, 'metorial-cli', release.tag_name);
   await mkdir(versionDir, { recursive: true });
+  let browserVersionDir = path.join(publicDir, 'metorial-cli-browser', release.tag_name);
+  let hasBrowserShell = false;
 
   let mirroredAssets: MirroredAsset[] = [];
 
@@ -70,6 +73,16 @@ for (let release of releases) {
       size: asset.size,
       download_url: `/metorial-cli/${release.tag_name}/${asset.name}`
     });
+
+    if (asset.name.startsWith('browser-shell-')) {
+      hasBrowserShell = true;
+      await mkdir(browserVersionDir, { recursive: true });
+      let browserFileName = asset.name.replace(/^browser-shell-/, '');
+      await copyFile(destinationPath, path.join(browserVersionDir, browserFileName));
+      if (browserFileName === 'index.html') {
+        await copyFile(destinationPath, path.join(browserVersionDir, 'browser-shell-index.html'));
+      }
+    }
   }
 
   await writeFile(
@@ -93,6 +106,10 @@ for (let release of releases) {
     html_url: release.html_url,
     assets: mirroredAssets
   });
+
+  if (hasBrowserShell && release.tag_name === latestRelease.tag_name) {
+    latestBrowserShellDir = browserVersionDir;
+  }
 }
 
 await mkdir(path.join(publicDir, 'metorial-cli'), { recursive: true });
@@ -102,6 +119,13 @@ await writeFile(
   JSON.stringify(mirroredReleases, null, 2) + '\n'
 );
 await copyFile(installTemplatePath, path.join(publicDir, 'install.sh'));
+
+if (latestBrowserShellDir) {
+  await rm(path.join(publicDir, 'metorial-cli-browser', 'latest'), { recursive: true, force: true });
+  await cp(latestBrowserShellDir, path.join(publicDir, 'metorial-cli-browser', 'latest'), { recursive: true });
+  await writeFile(path.join(publicDir, 'metorial-cli-browser', 'latest-tag'), `${latestRelease.tag_name}\n`);
+}
+
 await writeFile(
   path.join(publicDir, 'index.html'),
   renderIndex(latestRelease, mirroredReleases)

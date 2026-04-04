@@ -116,6 +116,8 @@ func NewCommand(ctx commandutil.Context) *cobra.Command {
 }
 
 func newIntegrationsCommand(application *app.App, rootOptions *rootOptionsView) *cobra.Command {
+	browserShell := commandutil.BrowserShellEnabled()
+
 	command := &cobra.Command{
 		Use:     "integrations",
 		Aliases: []string{"integration"},
@@ -173,7 +175,9 @@ func newIntegrationsCommand(application *app.App, rootOptions *rootOptionsView) 
 				identifier := integrationListIdentifier(result.Items[0])
 				tips = append(tips, fmt.Sprintf("metorial integrations get %s", identifier))
 				tips = append(tips, fmt.Sprintf("metorial integrations tools %s", identifier))
-				tips = append(tips, fmt.Sprintf("metorial integrations install codex %s", identifier))
+				if !browserShell {
+					tips = append(tips, fmt.Sprintf("metorial integrations install codex %s", identifier))
+				}
 			}
 			tips = append(tips, paginationTipsForIntegrationList(args, integrationListPagination, result.Items, result.Pagination)...)
 			tips = append(tips, "metorial integrations catalog list")
@@ -230,8 +234,12 @@ func newIntegrationsCommand(application *app.App, rootOptions *rootOptionsView) 
 
 			tips := []string{
 				fmt.Sprintf("metorial integrations tools %s", integrationGetIdentifier(server)),
-				fmt.Sprintf("metorial integrations install codex %s", integrationGetIdentifier(server)),
-				fmt.Sprintf("metorial integrations install custom %s", integrationGetIdentifier(server)),
+			}
+			if !browserShell {
+				tips = append(tips,
+					fmt.Sprintf("metorial integrations install codex %s", integrationGetIdentifier(server)),
+					fmt.Sprintf("metorial integrations install custom %s", integrationGetIdentifier(server)),
+				)
 			}
 
 			format, err := output.ParseFormat(rootOptions.format)
@@ -358,8 +366,12 @@ func newIntegrationsCommand(application *app.App, rootOptions *rootOptionsView) 
 			tips := []string{
 				fmt.Sprintf("metorial integrations get %s", integrationCreateIdentifier(server)),
 				fmt.Sprintf("metorial integrations tools %s", integrationCreateIdentifier(server)),
-				fmt.Sprintf("metorial integrations install codex %s", integrationCreateIdentifier(server)),
-				fmt.Sprintf("metorial integrations install custom %s", integrationCreateIdentifier(server)),
+			}
+			if !browserShell {
+				tips = append(tips,
+					fmt.Sprintf("metorial integrations install codex %s", integrationCreateIdentifier(server)),
+					fmt.Sprintf("metorial integrations install custom %s", integrationCreateIdentifier(server)),
+				)
 			}
 			if finalListing != nil {
 				tips = append(tips, fmt.Sprintf("metorial integrations catalog get %s", finalListing.Slug))
@@ -515,35 +527,37 @@ func newIntegrationsCommand(application *app.App, rootOptions *rootOptionsView) 
 	addPaginationFlags(searchCommand, &catalogPagination, "provider listings")
 	command.AddCommand(searchCommand)
 
-	clientCommand := &cobra.Command{
-		Use:   "client",
-		Short: "Inspect supported local MCP clients",
+	if !browserShell {
+		clientCommand := &cobra.Command{
+			Use:   "client",
+			Short: "Inspect supported local MCP clients",
+		}
+		clientCommand.AddCommand(&cobra.Command{
+			Use:   "list",
+			Short: "List supported MCP clients and installation availability",
+			RunE: func(command *cobra.Command, args []string) error {
+				rows := integrationClientRows()
+				tips := []string{
+					"metorial integrations install codex <integration-id>",
+					"metorial integrations install custom <integration-id>",
+				}
+
+				format, err := output.ParseFormat(rootOptions.format)
+				if err != nil {
+					return err
+				}
+				if format != output.FormatStructured {
+					return writeValue(command.OutOrStdout(), application.StdoutFeatures(), rootOptions.format, map[string]any{
+						"items": rows,
+						"tips":  tips,
+					})
+				}
+
+				return renderIntegrationClientList(command.OutOrStdout(), application.StdoutFeatures(), rows, tips)
+			},
+		})
+		command.AddCommand(clientCommand)
 	}
-	clientCommand.AddCommand(&cobra.Command{
-		Use:   "list",
-		Short: "List supported MCP clients and installation availability",
-		RunE: func(command *cobra.Command, args []string) error {
-			rows := integrationClientRows()
-			tips := []string{
-				"metorial integrations install codex <integration-id>",
-				"metorial integrations install custom <integration-id>",
-			}
-
-			format, err := output.ParseFormat(rootOptions.format)
-			if err != nil {
-				return err
-			}
-			if format != output.FormatStructured {
-				return writeValue(command.OutOrStdout(), application.StdoutFeatures(), rootOptions.format, map[string]any{
-					"items": rows,
-					"tips":  tips,
-				})
-			}
-
-			return renderIntegrationClientList(command.OutOrStdout(), application.StdoutFeatures(), rows, tips)
-		},
-	})
-	command.AddCommand(clientCommand)
 
 	installCommand := &cobra.Command{
 		Use:   "install <client-identifier> <integration-id>",
@@ -678,7 +692,9 @@ func newIntegrationsCommand(application *app.App, rootOptions *rootOptionsView) 
 			return renderCustomInstallResult(command.OutOrStdout(), application.StdoutFeatures(), result)
 		},
 	})
-	command.AddCommand(installCommand)
+	if !browserShell {
+		command.AddCommand(installCommand)
+	}
 
 	command.AddCommand(&cobra.Command{
 		Use:   "tools <integration-id>",

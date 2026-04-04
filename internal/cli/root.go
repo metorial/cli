@@ -25,10 +25,18 @@ import (
 
 func Run() int {
 	application := app.New()
+	return RunArgs(application, nil)
+}
+
+func RunArgs(application *app.App, args []string) int {
 	command, err := NewRootCommand(application)
 	if err != nil {
 		renderCLIError(application, err)
 		return 1
+	}
+
+	if args != nil {
+		command.SetArgs(args)
 	}
 
 	if err := command.Execute(); err != nil {
@@ -82,19 +90,27 @@ func NewRootCommand(application *app.App) (*cobra.Command, error) {
 	})
 
 	command.AddCommand(systemcmd.NewVersionCommand())
-	command.AddCommand(systemcmd.NewUpgradeCommand(application))
 	command.AddCommand(systemcmd.NewFeedbackCommand())
-	command.AddCommand(systemcmd.NewOpenCommand())
-	command.AddCommand(authcmd.NewCommand(ctx))
-	command.AddCommand(authcmd.NewLoginCommand(ctx))
-	command.AddCommand(authcmd.NewLogoutCommand())
-	command.AddCommand(instancecmd.NewCommand(ctx))
-	command.AddCommand(authcmd.NewProfileCommand(ctx))
-	command.AddCommand(examplecmd.NewCommand(ctx))
 	command.AddCommand(integrationscmd.NewCommand(ctx))
-	command.AddCommand(settingscmd.NewCommand(ctx))
 	command.AddCommand(fetchcmd.NewCommand(ctx))
-	command.AddCommand(completioncmd.NewCommand(command.OutOrStdout()))
+
+	if !commandutil.BrowserShellEnabled() {
+		command.AddCommand(systemcmd.NewUpgradeCommand(application))
+		command.AddCommand(systemcmd.NewOpenCommand())
+		command.AddCommand(authcmd.NewCommand(ctx))
+		command.AddCommand(authcmd.NewLoginCommand(ctx))
+		command.AddCommand(authcmd.NewLogoutCommand())
+		command.AddCommand(instancecmd.NewCommand(ctx))
+		command.AddCommand(authcmd.NewProfileCommand(ctx))
+		command.AddCommand(examplecmd.NewCommand(ctx))
+		command.AddCommand(settingscmd.NewCommand(ctx))
+		command.AddCommand(completioncmd.NewCommand(command.OutOrStdout()))
+	} else {
+		_ = command.PersistentFlags().MarkHidden("api-key")
+		_ = command.PersistentFlags().MarkHidden("api-host")
+		_ = command.PersistentFlags().MarkHidden("instance")
+		_ = command.PersistentFlags().MarkHidden("profile")
+	}
 
 	if err := resourcescmd.AddPublicCommands(command, ctx); err != nil {
 		return nil, err

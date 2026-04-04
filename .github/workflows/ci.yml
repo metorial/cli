@@ -50,3 +50,6 @@ jobs:
 
       - name: Build npm packages
         run: bun run build:npm
+
+      - name: Build browser shell
+        run: bun run build:browser-shell

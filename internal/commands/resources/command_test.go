@@ -248,6 +248,19 @@ func TestBuildResourceTargetUsesSnakeCaseQueryKeys(t *testing.T) {
 	}
 }
 
+func TestRootOptionsViewTracksUpdatedFormat(t *testing.T) {
+	t.Parallel()
+
+	options := &commandutil.RootOptions{Format: "structured"}
+	view := newRootOptionsView(options)
+
+	options.Format = "json"
+
+	if got := view.format(); got != "json" {
+		t.Fatalf("view.format() = %q, want %q", got, "json")
+	}
+}
+
 func TestResourceCommandHelpIncludesArgumentsSection(t *testing.T) {
 	t.Parallel()
 
