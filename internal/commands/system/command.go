@@ -3,9 +3,11 @@ package system
 import (
 	"fmt"
 
+	"github.com/metorial/cli/internal/app"
 	"github.com/metorial/cli/internal/browser"
 	"github.com/metorial/cli/internal/config"
 	"github.com/metorial/cli/internal/terminal"
+	"github.com/metorial/cli/internal/update"
 	"github.com/metorial/cli/internal/version"
 	"github.com/spf13/cobra"
 )
@@ -33,6 +35,16 @@ func NewFeedbackCommand() *cobra.Command {
 		Run: func(command *cobra.Command, args []string) {
 			link := terminal.Link("github.com/metorial/cli", config.DefaultFeedback)
 			_, _ = fmt.Fprintf(command.OutOrStdout(), "Share feedback at %s\n", link)
+		},
+	}
+}
+
+func NewUpgradeCommand(application *app.App) *cobra.Command {
+	return &cobra.Command{
+		Use:   "upgrade",
+		Short: "Upgrade the Metorial CLI",
+		RunE: func(command *cobra.Command, args []string) error {
+			return update.Upgrade(application.Stdout, application.Stderr)
 		},
 	}
 }

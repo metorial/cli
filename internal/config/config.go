@@ -192,12 +192,21 @@ func normalizePlatformURL(raw string) (string, error) {
 }
 
 func DefaultConfigPath() (string, error) {
+	cliDir, err := DefaultCLIDir()
+	if err != nil {
+		return "", err
+	}
+
+	return filepath.Join(cliDir, "config.json"), nil
+}
+
+func DefaultCLIDir() (string, error) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return "", fmt.Errorf("metorial: failed to resolve home directory: %w", err)
 	}
 
-	return filepath.Join(homeDir, ".metorial", "cli", "config.json"), nil
+	return filepath.Join(homeDir, ".metorial", "cli"), nil
 }
 
 func OpenStore() (*Store, error) {

@@ -10,6 +10,7 @@ require (
 	github.com/pelletier/go-toml/v2 v2.2.4
 	github.com/spf13/cobra v1.10.1
 	github.com/tailscale/hujson v0.0.0-20241010212012-29efb4a0184b
+	golang.org/x/mod v0.29.0
 	golang.org/x/term v0.32.0
 	gopkg.in/yaml.v3 v3.0.1
 )

@@ -18,6 +18,7 @@ import (
 	"github.com/metorial/cli/internal/config"
 	"github.com/metorial/cli/internal/output"
 	"github.com/metorial/cli/internal/terminal"
+	"github.com/metorial/cli/internal/update"
 	"github.com/metorial/cli/internal/version"
 	"github.com/spf13/cobra"
 )
@@ -81,6 +82,7 @@ func NewRootCommand(application *app.App) (*cobra.Command, error) {
 	})
 
 	command.AddCommand(systemcmd.NewVersionCommand())
+	command.AddCommand(systemcmd.NewUpgradeCommand(application))
 	command.AddCommand(systemcmd.NewFeedbackCommand())
 	command.AddCommand(systemcmd.NewOpenCommand())
 	command.AddCommand(authcmd.NewCommand(ctx))
@@ -99,6 +101,14 @@ func NewRootCommand(application *app.App) (*cobra.Command, error) {
 	}
 	if err := resourcescmd.AddSessionCommands(command, ctx); err != nil {
 		return nil, err
+	}
+
+	command.PersistentPreRunE = func(command *cobra.Command, args []string) error {
+		if shouldSkipUpgradeNotice(command) {
+			return nil
+		}
+
+		return update.MaybePrintUpgradeNotice(application.Stderr, application.StderrFeatures())
 	}
 
 	return command, nil
@@ -162,4 +172,15 @@ func renderCLIError(application *app.App, err error) {
 		}
 		_, _ = fmt.Fprintln(application.Stderr, colors.Muted(trimmed))
 	}
+}
+
+func shouldSkipUpgradeNotice(command *cobra.Command) bool {
+	for current := command; current != nil; current = current.Parent() {
+		switch current.Name() {
+		case "upgrade", "completion":
+			return true
+		}
+	}
+
+	return false
 }
