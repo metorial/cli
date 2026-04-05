@@ -20,6 +20,7 @@ const (
 	EnvAPIKey       = "METORIAL_API_KEY"
 	EnvToken        = "METORIAL_TOKEN"
 	EnvAPIHost      = "METORIAL_API_HOST"
+	EnvInstanceID   = "METORIAL_INSTANCE_ID"
 	DefaultFeedback = "https://github.com/metorial/cli"
 	ConfigVersion   = 1
 )
@@ -115,6 +116,9 @@ func (r Runtime) RequireAPIKey() error {
 	if strings.TrimSpace(r.APIKey) != "" {
 		return nil
 	}
+	if browserSessionAuthAvailable() {
+		return nil
+	}
 
 	return fmt.Errorf(
 		"metorial: no authentication found.\nSign in with \"metorial login\" to keep using saved profiles on this machine.\nOr set %s/%s or pass --api-key for a one-off request.",
@@ -142,8 +146,10 @@ func (r Runtime) sdk(headers map[string]string) (*metorial.MetorialSdk, error) {
 	}
 
 	options := []metorial.Option{
-		metorial.WithAPIKey(r.APIKey),
 		metorial.WithAPIHost(r.APIHost),
+	}
+	if strings.TrimSpace(r.APIKey) != "" {
+		options = append(options, metorial.WithAPIKey(r.APIKey))
 	}
 	if len(headers) > 0 {
 		options = append(options, metorial.WithHeaders(headers))
@@ -192,12 +198,21 @@ func normalizePlatformURL(raw string) (string, error) {
 }
 
 func DefaultConfigPath() (string, error) {
+	cliDir, err := DefaultCLIDir()
+	if err != nil {
+		return "", err
+	}
+
+	return filepath.Join(cliDir, "config.json"), nil
+}
+
+func DefaultCLIDir() (string, error) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return "", fmt.Errorf("metorial: failed to resolve home directory: %w", err)
 	}
 
-	return filepath.Join(homeDir, ".metorial", "cli", "config.json"), nil
+	return filepath.Join(homeDir, ".metorial", "cli"), nil
 }
 
 func OpenStore() (*Store, error) {

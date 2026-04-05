@@ -18,25 +18,46 @@ import (
 )
 
 type rootOptionsView struct {
-	apiKey   string
-	apiHost  string
-	instance string
-	profile  string
-	format   string
+	options *commandutil.RootOptions
 }
 
 func newRootOptionsView(options *commandutil.RootOptions) *rootOptionsView {
-	if options == nil {
-		return &rootOptionsView{}
-	}
+	return &rootOptionsView{options: options}
+}
 
-	return &rootOptionsView{
-		apiKey:   options.APIKey,
-		apiHost:  options.APIHost,
-		instance: options.Instance,
-		profile:  options.Profile,
-		format:   options.Format,
+func (v *rootOptionsView) apiKey() string {
+	if v == nil || v.options == nil {
+		return ""
 	}
+	return v.options.APIKey
+}
+
+func (v *rootOptionsView) apiHost() string {
+	if v == nil || v.options == nil {
+		return ""
+	}
+	return v.options.APIHost
+}
+
+func (v *rootOptionsView) instance() string {
+	if v == nil || v.options == nil {
+		return ""
+	}
+	return v.options.Instance
+}
+
+func (v *rootOptionsView) profile() string {
+	if v == nil || v.options == nil {
+		return ""
+	}
+	return v.options.Profile
+}
+
+func (v *rootOptionsView) format() string {
+	if v == nil || v.options == nil {
+		return ""
+	}
+	return v.options.Format
 }
 
 func AddPublicCommands(
@@ -97,7 +118,7 @@ func newPublicResourceAction(
 			"metorial:see-also":         formatSeeAlsoSection(operation.SeeAlso),
 		},
 		RunE: func(command *cobra.Command, args []string) error {
-			runtime, err := application.ResolveConfig(rootOptions.apiKey, rootOptions.apiHost, rootOptions.profile, rootOptions.instance)
+			runtime, err := application.ResolveConfig(rootOptions.apiKey(), rootOptions.apiHost(), rootOptions.profile(), rootOptions.instance())
 			if err != nil {
 				return err
 			}
@@ -107,7 +128,7 @@ func newPublicResourceAction(
 				return err
 			}
 
-			format, err := output.ParseFormat(rootOptions.format)
+			format, err := output.ParseFormat(rootOptions.format())
 			if err != nil {
 				return err
 			}

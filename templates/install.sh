@@ -132,6 +132,24 @@ resolve_managed_bin_path() {
   printf '%s/.metorial/cli/metorial' "$HOME"
 }
 
+write_install_metadata() {
+  install_dir="$1"
+  symlink_path="$2"
+  managed_bin_path="$3"
+  metadata_path="${HOME}/.metorial/cli/install.json"
+
+  mkdir -p "$(dirname "$metadata_path")"
+
+  cat > "$metadata_path" <<EOF
+{
+  "method": "install_sh",
+  "bin_dir": ${install_dir@Q},
+  "symlink_path": ${symlink_path@Q},
+  "managed_binary_path": ${managed_bin_path@Q}
+}
+EOF
+}
+
 verify_checksum() {
   checksum_file="$1"
   archive_name="$2"
@@ -234,6 +252,7 @@ main() {
   mkdir -p "$install_dir"
   install "$extract_dir/metorial" "$managed_bin_path"
   ln -sfn "$managed_bin_path" "$symlink_path"
+  write_install_metadata "$install_dir" "$symlink_path" "$managed_bin_path"
   stop_spinner
 
   printf '\rSuccessfully installed \033[1;34mMetorial CLI\033[0m (%s)\n' "$version"

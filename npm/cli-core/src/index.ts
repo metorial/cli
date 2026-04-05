@@ -68,6 +68,14 @@ export function replaceOutput(searchValue: string, replaceValue: string): Output
   return value => value.replaceAll(searchValue, replaceValue);
 }
 
+export function npmInstallEnvironment(packageName: string): NodeJS.ProcessEnv {
+  return {
+    METORIAL_INSTALL_METHOD: 'npm',
+    METORIAL_INSTALL_PM: detectNodePackageManager(__filename),
+    METORIAL_INSTALL_PACKAGE: packageName
+  };
+}
+
 async function downloadAndInstall(input: {
   tag: string;
   spec: PlatformSpec;
@@ -297,4 +305,34 @@ async function walkForBinary(rootDir: string, binaryName: string): Promise<strin
   }
 
   throw new Error(`Downloaded archive did not contain ${binaryName}`);
+}
+
+function detectNodePackageManager(fileName: string) {
+  let userAgent = process.env.npm_config_user_agent || '';
+
+  if (userAgent.startsWith('pnpm/')) {
+    return 'pnpm';
+  }
+  if (userAgent.startsWith('yarn/')) {
+    return 'yarn';
+  }
+  if (userAgent.startsWith('bun/')) {
+    return 'bun';
+  }
+  if (userAgent.startsWith('npm/')) {
+    return 'npm';
+  }
+
+  let normalized = fileName.replaceAll('\\', '/').toLowerCase();
+  if (normalized.includes('/.bun/install/global/')) {
+    return 'bun';
+  }
+  if (normalized.includes('/pnpm/global/') || normalized.includes('/pnpm-global/')) {
+    return 'pnpm';
+  }
+  if (normalized.includes('/.config/yarn/global/') || normalized.includes('/.yarn/global/')) {
+    return 'yarn';
+  }
+
+  return 'npm';
 }

@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Metorial CLI Browser Shell</title>
+    <link rel="stylesheet" href="./browser-shell-style.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="shell__header">
+        <div>
+          <p class="shell__eyebrow">Metorial CLI</p>
+          <h1>Browser Shell</h1>
+        </div>
+        <div class="shell__meta">Version <span id="version">__METORIAL_VERSION__</span></div>
+      </header>
+      <section class="shell__screen" id="screen" aria-live="polite"></section>
+      <form class="shell__prompt" id="prompt-form">
+        <label class="shell__prompt-label" for="prompt-input">metorial</label>
+        <input id="prompt-input" autocomplete="off" spellcheck="false" placeholder="Type a command, for example: version" />
+        <button type="submit">Run</button>
+      </form>
+    </main>
+    <script src="./browser-shell-main.js" type="module"></script>
+  </body>
+</html>

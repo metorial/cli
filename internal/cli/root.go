@@ -18,16 +18,25 @@ import (
 	"github.com/metorial/cli/internal/config"
 	"github.com/metorial/cli/internal/output"
 	"github.com/metorial/cli/internal/terminal"
+	"github.com/metorial/cli/internal/update"
 	"github.com/metorial/cli/internal/version"
 	"github.com/spf13/cobra"
 )
 
 func Run() int {
 	application := app.New()
+	return RunArgs(application, nil)
+}
+
+func RunArgs(application *app.App, args []string) int {
 	command, err := NewRootCommand(application)
 	if err != nil {
 		renderCLIError(application, err)
 		return 1
+	}
+
+	if args != nil {
+		command.SetArgs(args)
 	}
 
 	if err := command.Execute(); err != nil {
@@ -82,23 +91,40 @@ func NewRootCommand(application *app.App) (*cobra.Command, error) {
 
 	command.AddCommand(systemcmd.NewVersionCommand())
 	command.AddCommand(systemcmd.NewFeedbackCommand())
-	command.AddCommand(systemcmd.NewOpenCommand())
-	command.AddCommand(authcmd.NewCommand(ctx))
-	command.AddCommand(authcmd.NewLoginCommand(ctx))
-	command.AddCommand(authcmd.NewLogoutCommand())
-	command.AddCommand(instancecmd.NewCommand(ctx))
-	command.AddCommand(authcmd.NewProfileCommand(ctx))
-	command.AddCommand(examplecmd.NewCommand(ctx))
 	command.AddCommand(integrationscmd.NewCommand(ctx))
-	command.AddCommand(settingscmd.NewCommand(ctx))
 	command.AddCommand(fetchcmd.NewCommand(ctx))
-	command.AddCommand(completioncmd.NewCommand(command.OutOrStdout()))
+
+	if !commandutil.BrowserShellEnabled() {
+		command.AddCommand(systemcmd.NewUpgradeCommand(application))
+		command.AddCommand(systemcmd.NewOpenCommand())
+		command.AddCommand(authcmd.NewCommand(ctx))
+		command.AddCommand(authcmd.NewLoginCommand(ctx))
+		command.AddCommand(authcmd.NewLogoutCommand())
+		command.AddCommand(instancecmd.NewCommand(ctx))
+		command.AddCommand(authcmd.NewProfileCommand(ctx))
+		command.AddCommand(examplecmd.NewCommand(ctx))
+		command.AddCommand(settingscmd.NewCommand(ctx))
+		command.AddCommand(completioncmd.NewCommand(command.OutOrStdout()))
+	} else {
+		_ = command.PersistentFlags().MarkHidden("api-key")
+		_ = command.PersistentFlags().MarkHidden("api-host")
+		_ = command.PersistentFlags().MarkHidden("instance")
+		_ = command.PersistentFlags().MarkHidden("profile")
+	}
 
 	if err := resourcescmd.AddPublicCommands(command, ctx); err != nil {
 		return nil, err
 	}
 	if err := resourcescmd.AddSessionCommands(command, ctx); err != nil {
 		return nil, err
+	}
+
+	command.PersistentPreRunE = func(command *cobra.Command, args []string) error {
+		if shouldSkipUpgradeNotice(command) {
+			return nil
+		}
+
+		return update.MaybePrintUpgradeNotice(application.Stderr, application.StderrFeatures())
 	}
 
 	return command, nil
@@ -162,4 +188,15 @@ func renderCLIError(application *app.App, err error) {
 		}
 		_, _ = fmt.Fprintln(application.Stderr, colors.Muted(trimmed))
 	}
+}
+
+func shouldSkipUpgradeNotice(command *cobra.Command) bool {
+	for current := command; current != nil; current = current.Parent() {
+		switch current.Name() {
+		case "upgrade", "completion":
+			return true
+		}
+	}
+
+	return false
 }

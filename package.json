@@ -7,11 +7,13 @@
   ],
   "scripts": {
     "build:npm": "bun run --cwd npm/cli-core build && bun run --cwd npm/cli build && bun run --cwd npm/create build",
+    "build:browser-shell": "bun ./scripts/build-browser-shell.ts",
     "set-npm-version": "bun ./scripts/set-npm-version.ts",
     "publish:npm": "bun ./scripts/publish-npm.ts"
   },
   "devDependencies": {
     "@types/node": "^24.5.2",
+    "memfs": "^4.49.0",
     "tsup": "^8.5.0",
     "typescript": "^5.9.2"
   }

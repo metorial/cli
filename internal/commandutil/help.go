@@ -30,6 +30,7 @@ const (
 )
 
 var helpColors = terminal.Colorizer{}
+var browserShellEnabled bool
 
 func ConfigureHelpFeatures(features terminal.Features) {
 	helpColors = terminal.NewColorizer(features)
@@ -60,6 +61,19 @@ func SetCommandAnnotation(command *cobra.Command, key, value string) {
 }
 
 func RootLongDescription() string {
+	if BrowserShellEnabled() {
+		return helpColors.Bold(METORIAL_2) + "\n\n" + strings.TrimSpace(`
+Welcome to the Metorial browser shell. Use it to browse providers, manage
+deployments, configs, identities, sessions, integrations, MCP tools, and send
+raw API requests from the browser.
+
+Start with "metorial providers list" or "metorial deployments list" to explore
+core resources, "metorial sessions list" to inspect active sessions,
+"metorial integrations list" or "metorial integrations catalog list" to work
+with integrations, and "metorial fetch" for raw authenticated API requests.
+`)
+	}
+
 	return helpColors.Bold(METORIAL_2) + "\n\n" + strings.TrimSpace(`
 Welcome to the Metorial CLI! Use it to browse providers, manage deployments,
 configs, identities, and sessions, work with integrations and MCP tools, send
@@ -72,6 +86,14 @@ to inspect active sessions, "metorial integrations list" or
 for raw authenticated API requests, "metorial example list" to clone official
 examples, and "metorial open" to launch the dashboard in a browser.
 `)
+}
+
+func BrowserShellEnabled() bool {
+	return browserShellEnabled
+}
+
+func SetBrowserShellEnabled(enabled bool) {
+	browserShellEnabled = enabled
 }
 
 func HelpTemplate() string {

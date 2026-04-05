@@ -10,11 +10,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/manifoldco/promptui"
 	"github.com/metorial/cli/internal/auth"
 	"github.com/metorial/cli/internal/config"
 	"github.com/metorial/cli/internal/terminal"
-	instancesresource "github.com/metorial/metorial-go/v1/resources/instances"
 )
 
 type App struct {
@@ -33,6 +31,16 @@ func New() *App {
 		Stderr:         os.Stderr,
 		stdoutFeatures: terminal.Detect(os.Stdout),
 		stderrFeatures: terminal.Detect(os.Stderr),
+	}
+}
+
+func NewWithIO(stdin io.Reader, stdout io.Writer, stderr io.Writer, stdoutFeatures terminal.Features, stderrFeatures terminal.Features) *App {
+	return &App{
+		Stdin:          stdin,
+		Stdout:         stdout,
+		Stderr:         stderr,
+		stdoutFeatures: stdoutFeatures,
+		stderrFeatures: stderrFeatures,
 	}
 }
 
@@ -255,13 +263,18 @@ func (a *App) ResolveExampleInstance(runtime config.Runtime, instanceFlag string
 }
 
 func (a *App) resolveInstanceSelection(runtime config.Runtime, instanceFlag string, requireSelection bool) (config.Runtime, error) {
-	if strings.TrimSpace(runtime.APIKey) == "" {
-		return runtime, nil
+	resolvedInstanceID := strings.TrimSpace(instanceFlag)
+	if resolvedInstanceID == "" {
+		resolvedInstanceID = strings.TrimSpace(os.Getenv(config.EnvInstanceID))
 	}
 
-	if strings.TrimSpace(instanceFlag) != "" {
-		runtime.InstanceID = strings.TrimSpace(instanceFlag)
+	if resolvedInstanceID != "" {
+		runtime.InstanceID = resolvedInstanceID
 		return preserveInstanceOnRefresh(runtime), nil
+	}
+
+	if strings.TrimSpace(runtime.APIKey) == "" {
+		return runtime, nil
 	}
 
 	cwd, err := os.Getwd()
@@ -328,32 +341,6 @@ func (a *App) resolveInstanceSelection(runtime config.Runtime, instanceFlag stri
 	}
 
 	return preserveInstanceOnRefresh(runtime), nil
-}
-
-func (a *App) promptForInstance(instances []instancesresource.InstancesListOutputItems) (*instancesresource.InstancesListOutputItems, error) {
-	items := make([]string, 0, len(instances))
-	for _, instance := range instances {
-		items = append(items, fmt.Sprintf("%s (%s)", firstNonEmpty(instance.Name, instance.Slug), instance.Id))
-	}
-
-	prompt := promptui.Select{
-		Label: "Select an instance",
-		Items: items,
-		Stdin: readerCloser{
-			Reader: a.Stdin,
-		},
-		Stdout: writerCloser{
-			Writer: a.Stdout,
-		},
-	}
-
-	index, _, err := prompt.Run()
-	if err != nil {
-		return nil, fmt.Errorf("metorial: instance selection was cancelled. Use --instance <instance-id> or run \"metorial instances list\" to see available instances")
-	}
-
-	selected := instances[index]
-	return &selected, nil
 }
 
 func tokenNeedsInstanceHeader(token string) bool {
