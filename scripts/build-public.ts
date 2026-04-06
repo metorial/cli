@@ -39,6 +39,7 @@ let scriptsDir = path.dirname(currentFile);
 let cliDir = path.resolve(scriptsDir, '..');
 let publicDir = path.join(cliDir, 'public');
 let installTemplatePath = path.join(cliDir, 'templates', 'install.sh');
+let cliMarkdownPath = path.join(cliDir, 'cli.metorial.com', 'cli.md');
 
 let githubOwner = process.env.GITHUB_REPOSITORY_OWNER || 'metorial';
 let githubRepo = process.env.GITHUB_REPOSITORY_NAME || 'cli';
@@ -119,6 +120,7 @@ await writeFile(
   JSON.stringify(mirroredReleases, null, 2) + '\n'
 );
 await copyFile(installTemplatePath, path.join(publicDir, 'install.sh'));
+await copyFile(cliMarkdownPath, path.join(publicDir, 'cli.md'));
 
 if (latestBrowserShellDir) {
   await rm(path.join(publicDir, 'metorial-cli-browser', 'latest'), { recursive: true, force: true });
