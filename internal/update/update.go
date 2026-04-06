@@ -208,28 +208,51 @@ func detectInstallFromExecutable() (InstallInfo, error) {
 		return InstallInfo{Method: installMethodUnknown}, nil
 	}
 
+	invocationPath := executablePath
+	if lookupPath, lookupErr := exec.LookPath(os.Args[0]); lookupErr == nil {
+		invocationPath = lookupPath
+	}
+
 	resolvedPath := executablePath
-	if evalPath, evalErr := filepath.EvalSymlinks(executablePath); evalErr == nil {
+	if evalPath, evalErr := filepath.EvalSymlinks(invocationPath); evalErr == nil {
+		resolvedPath = evalPath
+	} else if evalPath, evalErr := filepath.EvalSymlinks(executablePath); evalErr == nil {
 		resolvedPath = evalPath
 	}
 
+	return detectInstallFromPaths(invocationPath, resolvedPath), nil
+}
+
+func detectInstallFromPaths(executablePath string, resolvedPath string) InstallInfo {
 	candidates := []string{filepath.ToSlash(executablePath), filepath.ToSlash(resolvedPath)}
 	for _, candidate := range candidates {
 		lower := strings.ToLower(candidate)
 
 		switch {
 		case strings.Contains(candidate, "/Cellar/metorial/"), strings.Contains(candidate, "/homebrew/opt/metorial/"), strings.Contains(candidate, "/linuxbrew/Cellar/metorial/"):
-			return InstallInfo{Method: installMethodHomebrew}, nil
+			return InstallInfo{Method: installMethodHomebrew}
 		case strings.Contains(lower, "/scoop/apps/metorial/"):
-			return InstallInfo{Method: installMethodScoop}, nil
+			return InstallInfo{Method: installMethodScoop}
 		case strings.Contains(lower, "/chocolatey/"):
-			return InstallInfo{Method: installMethodChocolatey}, nil
-		case strings.Contains(candidate, "/.metorial/cli/"):
-			return InstallInfo{Method: installMethodInstallSH}, nil
+			return InstallInfo{Method: installMethodChocolatey}
 		}
 	}
 
-	return InstallInfo{Method: installMethodUnknown}, nil
+	if strings.Contains(filepath.ToSlash(executablePath), "/.metorial/cli/") || strings.Contains(filepath.ToSlash(resolvedPath), "/.metorial/cli/") {
+		install := InstallInfo{
+			Method:            installMethodInstallSH,
+			ManagedBinaryPath: resolvedPath,
+		}
+
+		if executablePath != "" && resolvedPath != "" && executablePath != resolvedPath {
+			install.BinDir = filepath.Dir(executablePath)
+			install.SymlinkPath = executablePath
+		}
+
+		return install
+	}
+
+	return InstallInfo{Method: installMethodUnknown}
 }
 
 func upgradeHint(install InstallInfo) string {
