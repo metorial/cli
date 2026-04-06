@@ -132,6 +132,16 @@ resolve_managed_bin_path() {
   printf '%s/.metorial/cli/metorial' "$HOME"
 }
 
+json_escape() {
+  value="$1"
+  value="${value//\\/\\\\}"
+  value="${value//\"/\\\"}"
+  value="${value//$'\n'/\\n}"
+  value="${value//$'\r'/\\r}"
+  value="${value//$'\t'/\\t}"
+  printf '%s' "$value"
+}
+
 write_install_metadata() {
   install_dir="$1"
   symlink_path="$2"
@@ -143,9 +153,9 @@ write_install_metadata() {
   cat > "$metadata_path" <<EOF
 {
   "method": "install_sh",
-  "bin_dir": ${install_dir@Q},
-  "symlink_path": ${symlink_path@Q},
-  "managed_binary_path": ${managed_bin_path@Q}
+  "bin_dir": "$(json_escape "$install_dir")",
+  "symlink_path": "$(json_escape "$symlink_path")",
+  "managed_binary_path": "$(json_escape "$managed_bin_path")"
 }
 EOF
 }
