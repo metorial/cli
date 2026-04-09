@@ -6,7 +6,7 @@
     "npm/*"
   ],
   "scripts": {
-    "build:npm": "bun run --cwd npm/cli-core build && bun run --cwd npm/cli build && bun run --cwd npm/create build",
+    "build:npm": "bun run --cwd npm/cli-core build && bun run --cwd npm/cli build && bun run --cwd npm/create build && bun run --cwd npm/call-tool build",
     "build:browser-shell": "bun ./scripts/build-browser-shell.ts",
     "set-npm-version": "bun ./scripts/set-npm-version.ts",
     "publish:npm": "bun ./scripts/publish-npm.ts"

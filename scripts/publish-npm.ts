@@ -8,7 +8,7 @@ let currentFile = fileURLToPath(import.meta.url);
 let scriptsDir = path.dirname(currentFile);
 let rootDir = path.resolve(scriptsDir, '..');
 
-let publishOrder = ['npm/cli-core', 'npm/cli', 'npm/create'];
+let publishOrder = ['npm/cli-core', 'npm/cli', 'npm/create', 'npm/call-tool'];
 
 for (let packagePath of publishOrder) {
   execFileSync(

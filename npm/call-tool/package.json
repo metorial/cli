@@ -1,0 +1,21 @@
+{
+  "name": "call-tool",
+  "version": "0.0.0-dev",
+  "description": "tool-call npm entrypoint for Metorial integrations",
+  "license": "MIT",
+  "bin": {
+    "call-tool": "./dist/bin.cjs"
+  },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsup --config tsup.config.ts"
+  },
+  "dependencies": {
+    "@metorial/cli-core": "workspace:*"
+  }
+}

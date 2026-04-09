@@ -10,6 +10,16 @@
         "typescript": "^5.9.2",
       },
     },
+    "npm/call-tool": {
+      "name": "call-tool",
+      "version": "0.0.0-dev",
+      "bin": {
+        "tool-call": "./dist/bin.cjs",
+      },
+      "dependencies": {
+        "@metorial/cli-core": "workspace:*",
+      },
+    },
     "npm/cli": {
       "name": "@metorial/cli",
       "version": "0.0.0-dev",
@@ -199,6 +209,8 @@
     "bundle-require": ["bundle-require@5.1.0", "", { "dependencies": { "load-tsconfig": "^0.2.3" }, "peerDependencies": { "esbuild": ">=0.18" } }, "sha512-3WrrOuZiyaaZPWiEt4G3+IffISVC9HYlWueJEBWED4ZH4aIAC2PnkdnuRrR94M+w6yGWn4AglWtJtBI8YqvgoA=="],
 
     "cac": ["cac@6.7.14", "", {}, "sha512-b6Ilus+c3RrdDk+JhLKUAQfzzgLEPy6wcXqS7f/xe1EETvsDP6GORG7SFuOs6cID5YkqchW/LXZbX5bc8j7ZcQ=="],
+
+    "call-tool": ["call-tool@workspace:npm/call-tool"],
 
     "chokidar": ["chokidar@4.0.3", "", { "dependencies": { "readdirp": "^4.0.1" } }, "sha512-Qgzu8kfBvo+cA4962jnP1KkS6Dop5NS6g7R5LFYJr4b8Ub94PPQXUksCw9PvXoeXPRRddRNC5C1JQUR2SMGtnA=="],
 
