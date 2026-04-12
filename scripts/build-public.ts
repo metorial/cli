@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 
-import { cp, copyFile, mkdir, rm, writeFile } from 'node:fs/promises';
+import { copyFile, cp, mkdir, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -39,7 +39,7 @@ let scriptsDir = path.dirname(currentFile);
 let cliDir = path.resolve(scriptsDir, '..');
 let publicDir = path.join(cliDir, 'public');
 let installTemplatePath = path.join(cliDir, 'templates', 'install.sh');
-let cliMarkdownPath = path.join(cliDir, 'cli.metorial.com', 'cli.md');
+let cliMarkdownPath = path.join(cliDir, 'templates', 'cli.md');
 
 let githubOwner = process.env.GITHUB_REPOSITORY_OWNER || 'metorial';
 let githubRepo = process.env.GITHUB_REPOSITORY_NAME || 'cli';
@@ -81,7 +81,10 @@ for (let release of releases) {
       let browserFileName = asset.name.replace(/^browser-shell-/, '');
       await copyFile(destinationPath, path.join(browserVersionDir, browserFileName));
       if (browserFileName === 'index.html') {
-        await copyFile(destinationPath, path.join(browserVersionDir, 'browser-shell-index.html'));
+        await copyFile(
+          destinationPath,
+          path.join(browserVersionDir, 'browser-shell-index.html')
+        );
       }
     }
   }
@@ -123,9 +126,17 @@ await copyFile(installTemplatePath, path.join(publicDir, 'install.sh'));
 await copyFile(cliMarkdownPath, path.join(publicDir, 'cli.md'));
 
 if (latestBrowserShellDir) {
-  await rm(path.join(publicDir, 'metorial-cli-browser', 'latest'), { recursive: true, force: true });
-  await cp(latestBrowserShellDir, path.join(publicDir, 'metorial-cli-browser', 'latest'), { recursive: true });
-  await writeFile(path.join(publicDir, 'metorial-cli-browser', 'latest-tag'), `${latestRelease.tag_name}\n`);
+  await rm(path.join(publicDir, 'metorial-cli-browser', 'latest'), {
+    recursive: true,
+    force: true
+  });
+  await cp(latestBrowserShellDir, path.join(publicDir, 'metorial-cli-browser', 'latest'), {
+    recursive: true
+  });
+  await writeFile(
+    path.join(publicDir, 'metorial-cli-browser', 'latest-tag'),
+    `${latestRelease.tag_name}\n`
+  );
 }
 
 await writeFile(
