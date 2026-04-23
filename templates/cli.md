@@ -46,12 +46,6 @@ npx @metorial/cli@latest
 brew install metorial/tap/metorial
 ```
 
-### Chocolatey
-
-```powershell
-choco install metorial
-```
-
 ### Scoop
 
 ```powershell

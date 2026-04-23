@@ -38,14 +38,6 @@ Best if you already manage command line tools with Homebrew.
 brew install metorial/tap/metorial
 ```
 
-### Chocolatey
-
-Best for Windows setups that already use Chocolatey.
-
-```powershell
-choco install metorial
-```
-
 ### Scoop
 
 Best for Windows setups that prefer Scoop.

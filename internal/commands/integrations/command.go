@@ -21,7 +21,7 @@ import (
 	"github.com/metorial/metorial-go/v1/endpoints"
 	"github.com/metorial/metorial-go/v1/resources/consumers"
 	"github.com/metorial/metorial-go/v1/resources/magicmcpservers"
-	magicmcpserverprovider "github.com/metorial/metorial-go/v1/resources/magicmcpservers/providers"
+	magicmcpserverprovider "github.com/metorial/metorial-go/v1/resources/magicmcpservers/provider"
 	setupsessions "github.com/metorial/metorial-go/v1/resources/providerdeployments/setupsessions"
 	providerlistings "github.com/metorial/metorial-go/v1/resources/providerlistings"
 	"github.com/metorial/metorial-go/v1/resources/providers"
@@ -981,13 +981,13 @@ func ensureMagicMCPTokenSecret(sdk *metorial.MetorialSdk) (string, error) {
 	return strings.TrimSpace(token.Secret), nil
 }
 
-func listMagicMcpServerProviders(runtime config.Runtime, sdk *metorial.MetorialSdk, magicMcpServerID string) (*magicmcpserverprovider.MagicMcpServersProvidersListOutput, error) {
+func listMagicMcpServerProviders(runtime config.Runtime, sdk *metorial.MetorialSdk, magicMcpServerID string) (*magicmcpserverprovider.MagicMcpServersProviderListOutput, error) {
 	response, err := consumerSDKFetch(runtime, sdk, "GET", fmt.Sprintf("/magic-mcp-servers/%s/providers?limit=15", strings.TrimSpace(magicMcpServerID)), nil)
 	if err != nil {
 		return nil, err
 	}
 
-	var providers magicmcpserverprovider.MagicMcpServersProvidersListOutput
+	var providers magicmcpserverprovider.MagicMcpServersProviderListOutput
 	if err := json.Unmarshal(response.Body, &providers); err != nil {
 		return nil, fmt.Errorf("metorial: failed to decode magic MCP providers for %s: %w", magicMcpServerID, err)
 	}
@@ -995,7 +995,7 @@ func listMagicMcpServerProviders(runtime config.Runtime, sdk *metorial.MetorialS
 	return &providers, nil
 }
 
-func createMagicMcpServerProvider(runtime config.Runtime, sdk *metorial.MetorialSdk, magicMcpServerID string, body map[string]any) (*magicmcpserverprovider.MagicMcpServersProvidersCreateOutput, error) {
+func createMagicMcpServerProvider(runtime config.Runtime, sdk *metorial.MetorialSdk, magicMcpServerID string, body map[string]any) (*magicmcpserverprovider.MagicMcpServersProviderCreateOutput, error) {
 	payload, err := json.Marshal(body)
 	if err != nil {
 		return nil, fmt.Errorf("metorial: failed to encode magic MCP provider assignment: %w", err)
@@ -1006,7 +1006,7 @@ func createMagicMcpServerProvider(runtime config.Runtime, sdk *metorial.Metorial
 		return nil, err
 	}
 
-	var providerAssignment magicmcpserverprovider.MagicMcpServersProvidersCreateOutput
+	var providerAssignment magicmcpserverprovider.MagicMcpServersProviderCreateOutput
 	if err := json.Unmarshal(response.Body, &providerAssignment); err != nil {
 		return nil, fmt.Errorf("metorial: failed to decode magic MCP provider assignment for %s: %w", magicMcpServerID, err)
 	}
@@ -1414,7 +1414,7 @@ func attachSetupSessionProviderToMagicServer(
 	sdk *metorial.MetorialSdk,
 	setupSession *setupsessions.ProviderDeploymentsSetupSessionsGetOutput,
 	server *magicmcpservers.MagicMcpServersCreateOutput,
-) (*magicmcpserverprovider.MagicMcpServersProvidersCreateOutput, error) {
+) (*magicmcpserverprovider.MagicMcpServersProviderCreateOutput, error) {
 	if setupSession == nil || server == nil {
 		return nil, nil
 	}
@@ -1691,7 +1691,7 @@ func renderIntegrationTools(writer io.Writer, features terminal.Features, server
 	return renderTips(writer, features, tips)
 }
 
-func renderSetupResult(writer io.Writer, features terminal.Features, setupSession *setupsessions.ProviderDeploymentsSetupSessionsGetOutput, listing *providerlistings.ProviderListingsGetOutput, provider *providers.ProvidersGetOutput, server *magicmcpservers.MagicMcpServersCreateOutput, sessionTemplateProvider *magicmcpserverprovider.MagicMcpServersProvidersCreateOutput, tips []string) error {
+func renderSetupResult(writer io.Writer, features terminal.Features, setupSession *setupsessions.ProviderDeploymentsSetupSessionsGetOutput, listing *providerlistings.ProviderListingsGetOutput, provider *providers.ProvidersGetOutput, server *magicmcpservers.MagicMcpServersCreateOutput, sessionTemplateProvider *magicmcpserverprovider.MagicMcpServersProviderCreateOutput, tips []string) error {
 	colors := terminal.NewColorizer(features)
 	title := server.Id
 	if name := optionalString(server.Name); name != "" {
