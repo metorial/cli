@@ -56,6 +56,9 @@ brews:
       owner: metorial
       name: homebrew-tap
       token: '{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}'
+      branch: goreleaser-homebrew-{{ .Version }}
+      pull_request:
+        enabled: true
     directory: Formula
     homepage: https://metorial.com
     description: Official CLI for the Metorial platform
@@ -74,6 +77,9 @@ scoops:
       owner: metorial
       name: scoop-bucket
       token: '{{ .Env.SCOOP_BUCKET_GITHUB_TOKEN }}'
+      branch: goreleaser-scoop-{{ .Version }}
+      pull_request:
+        enabled: true
     homepage: https://metorial.com
     description: Official CLI for the Metorial platform
     license: MIT
