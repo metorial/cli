@@ -81,23 +81,23 @@ scoops:
       name: metorial-bot
       email: hey@metorial.com
 
-chocolateys:
-  - name: metorial
-    title: Metorial CLI
-    authors: Metorial Inc.
-    project_url: https://metorial.com
-    url_template: 'https://github.com/metorial/cli/releases/download/{{ .Tag }}/{{ .ArtifactName }}'
-    copyright: 2026 Metorial Inc.
-    license_url: https://github.com/metorial/cli/blob/main/LICENSE
-    project_source_url: https://github.com/metorial/cli
-    docs_url: https://metorial.com/docs
-    bug_tracker_url: https://github.com/metorial/cli/issues
-    release_notes: https://github.com/metorial/cli/releases/tag/{{ .Tag }}
-    summary: Official CLI for the Metorial platform
-    description: The Metorial CLI lets you authenticate, inspect resources, and work with the Metorial platform from your terminal.
-    tags: metorial cli ai mcp
-    api_key: '{{ .Env.CHOCOLATEY_API_KEY }}'
-    source_repo: https://push.chocolatey.org/
+# chocolateys:
+#   - name: metorial
+#     title: Metorial CLI
+#     authors: Metorial Inc.
+#     project_url: https://metorial.com
+#     url_template: 'https://github.com/metorial/cli/releases/download/{{ .Tag }}/{{ .ArtifactName }}'
+#     copyright: 2026 Metorial Inc.
+#     license_url: https://github.com/metorial/cli/blob/main/LICENSE
+#     project_source_url: https://github.com/metorial/cli
+#     docs_url: https://metorial.com/docs
+#     bug_tracker_url: https://github.com/metorial/cli/issues
+#     release_notes: https://github.com/metorial/cli/releases/tag/{{ .Tag }}
+#     summary: Official CLI for the Metorial platform
+#     description: The Metorial CLI lets you authenticate, inspect resources, and work with the Metorial platform from your terminal.
+#     tags: metorial cli ai mcp
+#     api_key: '{{ .Env.CHOCOLATEY_API_KEY }}'
+#     source_repo: https://push.chocolatey.org/
 
 changelog:
   sort: asc
