@@ -21,10 +21,10 @@ import (
 	"github.com/metorial/metorial-go/v1/endpoints"
 	"github.com/metorial/metorial-go/v1/resources/consumers"
 	"github.com/metorial/metorial-go/v1/resources/magicmcpservers"
-	providertools "github.com/metorial/metorial-go/v1/resources/provider/tools"
 	setupsessions "github.com/metorial/metorial-go/v1/resources/providerdeployments/setupsessions"
 	providerlistings "github.com/metorial/metorial-go/v1/resources/providerlistings"
 	"github.com/metorial/metorial-go/v1/resources/providers"
+	providertools "github.com/metorial/metorial-go/v1/resources/providers/tools"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
@@ -1453,13 +1453,13 @@ func attachSetupSessionProviderToMagicServer(
 	return sessionTemplateProvider, nil
 }
 
-func listProviderTools(sdk *metorial.MetorialSdk, version any) ([]providertools.ProviderToolsListOutputItems, error) {
+func listProviderTools(sdk *metorial.MetorialSdk, version any) ([]providertools.ProvidersToolsListOutputItems, error) {
 	switch typed := version.(type) {
 	case *providerlistings.ProviderListingsGetOutputProviderCurrentVersion:
 		if typed == nil || strings.TrimSpace(typed.Id) == "" {
 			return nil, nil
 		}
-		result, err := sdk.ProviderTools.List(&endpoints.ProviderToolsEndpointListParams{
+		result, err := sdk.ProvidersTools.List(&endpoints.ProvidersToolsEndpointListParams{
 			Limit:             float64Ptr(15),
 			ProviderVersionId: typed.Id,
 		})
@@ -1471,7 +1471,7 @@ func listProviderTools(sdk *metorial.MetorialSdk, version any) ([]providertools.
 		if typed == nil || strings.TrimSpace(typed.Id) == "" {
 			return nil, nil
 		}
-		result, err := sdk.ProviderTools.List(&endpoints.ProviderToolsEndpointListParams{
+		result, err := sdk.ProvidersTools.List(&endpoints.ProvidersToolsEndpointListParams{
 			Limit:             float64Ptr(15),
 			ProviderVersionId: typed.Id,
 		})
@@ -1606,7 +1606,7 @@ func renderCatalogList(writer io.Writer, features terminal.Features, rows []cata
 	return renderTips(writer, features, tips)
 }
 
-func renderCatalogDetail(writer io.Writer, features terminal.Features, listing *providerlistings.ProviderListingsGetOutput, tools []providertools.ProviderToolsListOutputItems, tips []string) error {
+func renderCatalogDetail(writer io.Writer, features terminal.Features, listing *providerlistings.ProviderListingsGetOutput, tools []providertools.ProvidersToolsListOutputItems, tips []string) error {
 	colors := terminal.NewColorizer(features)
 	_, _ = fmt.Fprintln(writer, colors.Bold(listing.Name))
 	_, _ = fmt.Fprintf(writer, "%s\n\n", colors.Muted(listing.Slug))
@@ -1747,7 +1747,7 @@ func renderSetupResult(writer io.Writer, features terminal.Features, setupSessio
 	return renderTips(writer, features, tips)
 }
 
-func renderToolsTable(writer io.Writer, features terminal.Features, tools []providertools.ProviderToolsListOutputItems) error {
+func renderToolsTable(writer io.Writer, features terminal.Features, tools []providertools.ProvidersToolsListOutputItems) error {
 	colors := terminal.NewColorizer(features)
 	_, _ = fmt.Fprintln(writer)
 	_, _ = fmt.Fprintln(writer, colors.Accent("Tools"))
