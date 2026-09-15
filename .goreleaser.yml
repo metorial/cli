@@ -35,11 +35,40 @@ builds:
       - amd64
       - arm64
 
+  - id: metorial-admin
+    main: ./cmd/metorial-admin
+    binary: metorial-admin
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w
+      - -X github.com/metorial/cli/internal/version.Version={{ .Version }}
+      - -X github.com/metorial/cli/internal/version.Commit={{ .Commit }}
+      - -X github.com/metorial/cli/internal/version.Date={{ .Date }}
+    goos:
+      - darwin
+      - linux
+      - windows
+    goarch:
+      - amd64
+      - arm64
+
 archives:
-  - id: default
+  - id: metorial
     builds:
       - metorial
-    name_template: '{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}'
+    name_template: 'metorial_{{ .Version }}_{{ .Os }}_{{ .Arch }}'
+    formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+
+  - id: metorial-admin
+    builds:
+      - metorial-admin
+    name_template: 'metorial-admin_{{ .Version }}_{{ .Os }}_{{ .Arch }}'
     formats:
       - tar.gz
     format_overrides:
@@ -52,6 +81,8 @@ checksum:
 
 brews:
   - name: metorial
+    ids:
+      - metorial
     repository:
       owner: metorial
       name: homebrew-tap
@@ -61,7 +92,7 @@ brews:
         enabled: true
     directory: Formula
     homepage: https://metorial.com
-    description: Official CLI for the Metorial platform
+    description: Official CLI for Metorial integrations and MCP tools
     license: MIT
     commit_author:
       name: metorial-bot
@@ -71,8 +102,32 @@ brews:
     install: |
       bin.install "metorial"
 
+  - name: metorial-admin
+    ids:
+      - metorial-admin
+    repository:
+      owner: metorial
+      name: homebrew-tap
+      token: '{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}'
+      branch: goreleaser-homebrew-admin-{{ .Version }}
+      pull_request:
+        enabled: true
+    directory: Formula
+    homepage: https://metorial.com
+    description: Official admin CLI for the Metorial Magnetar API
+    license: MIT
+    commit_author:
+      name: metorial-bot
+      email: hey@metorial.com
+    test: |
+      system "#{bin}/metorial-admin", "version"
+    install: |
+      bin.install "metorial-admin"
+
 scoops:
   - name: metorial
+    ids:
+      - metorial
     repository:
       owner: metorial
       name: scoop-bucket
@@ -81,29 +136,28 @@ scoops:
       pull_request:
         enabled: true
     homepage: https://metorial.com
-    description: Official CLI for the Metorial platform
+    description: Official CLI for Metorial integrations and MCP tools
     license: MIT
     commit_author:
       name: metorial-bot
       email: hey@metorial.com
 
-# chocolateys:
-#   - name: metorial
-#     title: Metorial CLI
-#     authors: Metorial Inc.
-#     project_url: https://metorial.com
-#     url_template: 'https://github.com/metorial/cli/releases/download/{{ .Tag }}/{{ .ArtifactName }}'
-#     copyright: 2026 Metorial Inc.
-#     license_url: https://github.com/metorial/cli/blob/main/LICENSE
-#     project_source_url: https://github.com/metorial/cli
-#     docs_url: https://metorial.com/docs
-#     bug_tracker_url: https://github.com/metorial/cli/issues
-#     release_notes: https://github.com/metorial/cli/releases/tag/{{ .Tag }}
-#     summary: Official CLI for the Metorial platform
-#     description: The Metorial CLI lets you authenticate, inspect resources, and work with the Metorial platform from your terminal.
-#     tags: metorial cli ai mcp
-#     api_key: '{{ .Env.CHOCOLATEY_API_KEY }}'
-#     source_repo: https://push.chocolatey.org/
+  - name: metorial-admin
+    ids:
+      - metorial-admin
+    repository:
+      owner: metorial
+      name: scoop-bucket
+      token: '{{ .Env.SCOOP_BUCKET_GITHUB_TOKEN }}'
+      branch: goreleaser-scoop-admin-{{ .Version }}
+      pull_request:
+        enabled: true
+    homepage: https://metorial.com
+    description: Official admin CLI for the Metorial Magnetar API
+    license: MIT
+    commit_author:
+      name: metorial-bot
+      email: hey@metorial.com
 
 changelog:
   sort: asc

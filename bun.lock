@@ -1,5 +1,6 @@
 {
   "lockfileVersion": 1,
+  "configVersion": 0,
   "workspaces": {
     "": {
       "name": "@metorial/cli-workspace",
@@ -25,6 +26,16 @@
       "version": "0.0.0-dev",
       "bin": {
         "metorial": "./dist/bin.cjs",
+      },
+      "dependencies": {
+        "@metorial/cli-core": "workspace:*",
+      },
+    },
+    "npm/cli-admin": {
+      "name": "@metorial/admin",
+      "version": "0.0.0-dev",
+      "bin": {
+        "metorial-admin": "./dist/bin.cjs",
       },
       "dependencies": {
         "@metorial/cli-core": "workspace:*",
@@ -141,6 +152,8 @@
     "@jsonjoy.com/util": ["@jsonjoy.com/util@1.9.0", "", { "dependencies": { "@jsonjoy.com/buffers": "^1.0.0", "@jsonjoy.com/codegen": "^1.0.0" }, "peerDependencies": { "tslib": "2" } }, "sha512-pLuQo+VPRnN8hfPqUTLTHk126wuYdXVxE6aDmjSeV4NCAgyxWbiOIeNJVtID3h1Vzpoi9m4jXezf73I6LgabgQ=="],
 
     "@metorial/cli": ["@metorial/cli@workspace:npm/cli"],
+
+    "@metorial/admin": ["@metorial/admin@workspace:npm/cli-admin"],
 
     "@metorial/cli-core": ["@metorial/cli-core@workspace:npm/cli-core"],
 

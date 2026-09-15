@@ -1,0 +1,23 @@
+{
+  "name": "@metorial/admin",
+  "version": "0.0.0-dev",
+  "description": "npm wrapper for the Metorial Admin CLI",
+  "license": "MIT",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "metorial-admin": "./dist/bin.cjs"
+  },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsup --config tsup.config.ts"
+  },
+  "dependencies": {
+    "@metorial/cli-core": "workspace:*"
+  }
+}

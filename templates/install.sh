@@ -129,7 +129,7 @@ resolve_install_dir() {
 }
 
 resolve_managed_bin_path() {
-  printf '%s/.metorial/cli/metorial' "$HOME"
+  printf '%s/.metorial/cli/%s' "$HOME" "$1"
 }
 
 json_escape() {
@@ -240,36 +240,54 @@ main() {
   [ -n "$version" ] || fail 'Unable to resolve the latest CLI version'
 
   normalized_version="${version#v}"
-  archive_name="metorial_${normalized_version}_${os}_${arch}.tar.gz"
   release_base="${RELEASE_ROOT}/${version}"
-  archive_path="${TMP_DIR}/${archive_name}"
   checksum_path="${TMP_DIR}/checksums.txt"
-  extract_dir="${TMP_DIR}/extract"
   install_dir=''
   install_dir="$(resolve_install_dir)"
   managed_bin_path=''
-  managed_bin_path="$(resolve_managed_bin_path)"
+  managed_bin_path="$(resolve_managed_bin_path metorial)"
   symlink_path="${install_dir}/metorial"
+  admin_managed_bin_path=''
+  admin_managed_bin_path="$(resolve_managed_bin_path metorial-admin)"
+  admin_symlink_path="${install_dir}/metorial-admin"
 
   start_spinner "Downloading version ${version}"
-  curl -fsSL "${release_base}/${archive_name}" -o "$archive_path"
   curl -fsSL "${release_base}/checksums.txt" -o "$checksum_path"
-
-  verify_checksum "$checksum_path" "$archive_name" "$archive_path"
-  extract_archive "$archive_path" "$extract_dir"
-
-  mkdir -p "$(dirname "$managed_bin_path")"
-  mkdir -p "$install_dir"
-  install "$extract_dir/metorial" "$managed_bin_path"
-  ln -sfn "$managed_bin_path" "$symlink_path"
+  install_release_binary metorial "$normalized_version" "$os" "$arch" "$release_base" "$checksum_path" "$managed_bin_path" "$symlink_path"
+  install_release_binary metorial-admin "$normalized_version" "$os" "$arch" "$release_base" "$checksum_path" "$admin_managed_bin_path" "$admin_symlink_path"
   write_install_metadata "$install_dir" "$symlink_path" "$managed_bin_path"
   stop_spinner
 
   printf '\rSuccessfully installed \033[1;34mMetorial CLI\033[0m (%s)\n' "$version"
-  printf "Get started by running 'metorial'\n"
+  printf "Get started by running 'metorial' or 'metorial-admin'\n"
   info "Managed binary: ${managed_bin_path}"
   info "Command symlink: ${symlink_path}"
+  info "Admin binary: ${admin_managed_bin_path}"
+  info "Admin symlink: ${admin_symlink_path}"
   ensure_path_in_shell_rc "$install_dir"
+}
+
+install_release_binary() {
+  binary_name="$1"
+  normalized_version="$2"
+  os="$3"
+  arch="$4"
+  release_base="$5"
+  checksum_path="$6"
+  managed_bin_path="$7"
+  symlink_path="$8"
+  archive_name="${binary_name}_${normalized_version}_${os}_${arch}.tar.gz"
+  archive_path="${TMP_DIR}/${archive_name}"
+  extract_dir="${TMP_DIR}/extract-${binary_name}"
+
+  curl -fsSL "${release_base}/${archive_name}" -o "$archive_path"
+  verify_checksum "$checksum_path" "$archive_name" "$archive_path"
+  extract_archive "$archive_path" "$extract_dir"
+
+  mkdir -p "$(dirname "$managed_bin_path")"
+  mkdir -p "$(dirname "$symlink_path")"
+  install "${extract_dir}/${binary_name}" "$managed_bin_path"
+  ln -sfn "$managed_bin_path" "$symlink_path"
 }
 
 main "$@"

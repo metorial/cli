@@ -22,6 +22,7 @@ export type RunCLIOptions = {
   cwd?: string;
   env?: NodeJS.ProcessEnv;
   version?: string;
+  binary?: string;
   stdoutTransform?: OutputTransform;
   stderrTransform?: OutputTransform;
 };
@@ -33,12 +34,12 @@ type PlatformSpec = {
 
 let DEFAULT_BASE_URL = 'https://cli.metorial.com';
 
-export async function resolveCLIPath(version?: string) {
+export async function resolveCLIPath(version?: string, binary = 'metorial') {
   let tag = normalizeVersion(
     version || process.env.METORIAL_CLI_VERSION || packageJson.version
   );
-  let spec = getPlatformSpec(tag);
-  let installDir = path.join(getCacheRoot(), 'versions', tag);
+  let spec = getPlatformSpec(tag, binary);
+  let installDir = path.join(getCacheRoot(), 'versions', tag, spec.binaryName.replace(/\.exe$/, ''));
   let binaryPath = path.join(installDir, spec.binaryName);
 
   if (await exists(binaryPath)) {
@@ -50,7 +51,7 @@ export async function resolveCLIPath(version?: string) {
 }
 
 export async function runCLI(args: string[], options: RunCLIOptions = {}) {
-  let binaryPath = await resolveCLIPath(options.version);
+  let binaryPath = await resolveCLIPath(options.version, options.binary || 'metorial');
 
   if (!options.stdoutTransform && !options.stderrTransform) {
     return await spawnWithInheritedOutput(binaryPath, args, options);
@@ -225,14 +226,14 @@ function getCacheRoot() {
   return path.join(os.homedir(), '.metorial', 'cli-npm');
 }
 
-function getPlatformSpec(tag: string): PlatformSpec {
+function getPlatformSpec(tag: string, binary = 'metorial'): PlatformSpec {
   let goos = resolveGoOS();
   let goarch = resolveGoArch();
   let extension = goos === 'windows' ? 'zip' : 'tar.gz';
-  let binaryName = goos === 'windows' ? 'metorial.exe' : 'metorial';
+  let binaryName = goos === 'windows' ? `${binary}.exe` : binary;
 
   return {
-    archiveName: `metorial_${tag.replace(/^v/, '')}_${goos}_${goarch}.${extension}`,
+    archiveName: `${binary}_${tag.replace(/^v/, '')}_${goos}_${goarch}.${extension}`,
     binaryName
   };
 }

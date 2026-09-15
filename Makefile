@@ -1,20 +1,24 @@
 CLI_NAME := metorial
+ADMIN_NAME := metorial-admin
 BIN_DIR := bin
 BIN := $(BIN_DIR)/$(CLI_NAME)
+ADMIN_BIN := $(BIN_DIR)/$(ADMIN_NAME)
 PKG := ./cmd/metorial
+ADMIN_PKG := ./cmd/metorial-admin
 
-.PHONY: help build run fmt test tidy check install clean completion-bash completion-zsh completion-fish completion-powershell release snapshot public
+.PHONY: help build run fmt test tidy check install clean completion-bash completion-zsh completion-fish completion-powershell generate release snapshot public
 
 help:
 	@printf "%s\n" \
 		"Available targets:" \
-		"  make build                 Build the CLI into ./bin/metorial" \
-		"  make run                   Run the CLI locally" \
+		"  make build                 Build both CLIs into ./bin" \
+		"  make run                   Run the consumer CLI locally" \
+		"  make generate              Generate admin commands from Magnetar introspect" \
 		"  make fmt                   Format all Go code" \
 		"  make test                  Run CLI tests" \
 		"  make tidy                  Sync go.mod and go.sum" \
 		"  make check                 Run fmt, tidy, and tests" \
-		"  make install               Install the CLI into GOPATH/bin" \
+		"  make install               Install both CLIs into GOPATH/bin" \
 		"  make clean                 Remove local build output" \
 		"  make completion-bash       Print bash completions" \
 		"  make completion-zsh        Print zsh completions" \
@@ -27,9 +31,13 @@ help:
 build:
 	mkdir -p $(BIN_DIR)
 	go build -o $(BIN) $(PKG)
+	go build -o $(ADMIN_BIN) $(ADMIN_PKG)
 
 run:
 	go run $(PKG)
+
+generate:
+	cd generator && bun run generate $${API_URL:-http://metorial-root.localhost:4310}
 
 fmt:
 	gofmt -w $$(find . -name '*.go' -print)
@@ -44,6 +52,7 @@ check: fmt tidy test
 
 install:
 	go install $(PKG)
+	go install $(ADMIN_PKG)
 
 clean:
 	rm -rf $(BIN_DIR)

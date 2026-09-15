@@ -43,7 +43,7 @@ jobs:
         run: go test ./...
 
       - name: Build CLI
-        run: go build ./cmd/metorial
+        run: go build ./cmd/metorial && go build ./cmd/metorial-admin
 
       - name: Install npm workspace dependencies
         run: bun install --frozen-lockfile
