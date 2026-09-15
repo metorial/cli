@@ -39,6 +39,21 @@ func (r ResourceSpec) Validate() error {
 		}
 	}
 
+	for _, child := range r.Children {
+		if err := child.Validate(); err != nil {
+			return err
+		}
+	}
+
+	for _, shortcut := range r.Shortcuts {
+		if len(shortcut.Path) == 0 {
+			return fmt.Errorf("resource command: shortcut on %q is missing a path", r.Plural)
+		}
+		if strings.TrimSpace(string(shortcut.Method)) == "" {
+			return fmt.Errorf("resource command: shortcut on %q is missing a method", r.Plural)
+		}
+	}
+
 	return nil
 }
 

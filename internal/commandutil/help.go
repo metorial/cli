@@ -61,30 +61,40 @@ func SetCommandAnnotation(command *cobra.Command, key, value string) {
 }
 
 func RootLongDescription() string {
+	return ConsumerRootLongDescription()
+}
+
+func ConsumerRootLongDescription() string {
 	if BrowserShellEnabled() {
 		return helpColors.Bold(METORIAL_2) + "\n\n" + strings.TrimSpace(`
-Welcome to the Metorial browser shell. Use it to browse providers, manage
-deployments, configs, identities, sessions, integrations, MCP tools, and send
-raw API requests from the browser.
+Welcome to the Metorial browser shell. Use it to discover, set up, and call
+integration tools over MCP.
 
-Start with "metorial providers list" or "metorial deployments list" to explore
-core resources, "metorial sessions list" to inspect active sessions,
-"metorial integrations list" or "metorial integrations catalog list" to work
-with integrations, and "metorial fetch" for raw authenticated API requests.
+Start with "metorial integrations list" or "metorial integrations catalog list"
+to work with integrations, and "metorial integrations call" to invoke a tool.
 `)
 	}
 
 	return helpColors.Bold(METORIAL_2) + "\n\n" + strings.TrimSpace(`
-Welcome to the Metorial CLI! Use it to browse providers, manage deployments,
-configs, identities, and sessions, work with integrations and MCP tools, send
-raw API requests, and bootstrap example projects.
+Welcome to the Metorial CLI! Use it to discover, set up, and call integration
+tools over MCP.
 
-Start with "metorial login" to sign in, "metorial providers list" or
-"metorial deployments list" to explore core resources, "metorial sessions list"
-to inspect active sessions, "metorial integrations list" or
-"metorial integrations catalog list" to work with integrations, "metorial fetch"
-for raw authenticated API requests, "metorial example list" to clone official
-examples, and "metorial open" to launch the dashboard in a browser.
+Start with "metorial login" to sign in, "metorial integrations list" or
+"metorial integrations catalog list" to work with integrations, and
+"metorial open" to launch the dashboard in a browser.
+
+Resource administration, raw API requests, and examples live in metorial-admin.
+`)
+}
+
+func AdminRootLongDescription() string {
+	return helpColors.Bold(METORIAL_2) + "\n\n" + strings.TrimSpace(`
+Welcome to the Metorial Admin CLI! Use it to manage Magnetar resources, send
+raw API requests, and bootstrap official example projects.
+
+Start with "metorial-admin login" to sign in, "metorial-admin providers list"
+to explore resources, "metorial-admin fetch" for raw authenticated API
+requests, and "metorial-admin example list" to clone official examples.
 `)
 }
 

@@ -1,6 +1,5 @@
 package resourcecmd
 
-// OperationName describes the CLI verb exposed for a resource.
 type OperationName string
 
 const (
@@ -47,9 +46,10 @@ type FlagSpec struct {
 	Shorthand string
 }
 
-// OperationSpec describes a single subcommand under a resource command.
 type OperationSpec struct {
 	Name       OperationName
+	Method     string
+	Path       string
 	Use        string
 	Short      string
 	Long       string
@@ -60,7 +60,11 @@ type OperationSpec struct {
 	SDKMapping string
 }
 
-// ResourceSpec describes one top-level resource command such as `providers`.
+type ShortcutSpec struct {
+	Path   []string
+	Method OperationName
+}
+
 type ResourceSpec struct {
 	Plural     string
 	Singular   string
@@ -69,4 +73,6 @@ type ResourceSpec struct {
 	PathPlural string
 	Operations []OperationSpec
 	Aliases    []string
+	Children   []ResourceSpec
+	Shortcuts  []ShortcutSpec
 }

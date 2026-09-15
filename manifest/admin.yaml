@@ -1,0 +1,368 @@
+apiVersion: mt_2026_01_01_magnetar
+binary: metorial-admin
+
+globals:
+  skipPathParams: [instanceId, organizationId]
+  pagination: true
+  bodyEscapeHatches: true
+  pathStrategy: public
+
+exclude:
+  sdkPathPrefixes: [consumer., dashboard.]
+  resources:
+    - assistants
+    - conversations
+    - testHelperConsumerOAuth
+
+commands:
+  - path: [instance]
+    resource: instances
+    aliases: [instances]
+
+  - path: [providers]
+    resource: providers
+    include: [list, get]
+    args:
+      list:
+        search: { flag: search }
+        auth_method: { flag: auth-method }
+
+  - path: [providers, listings]
+    resource: providerListings
+
+  - path: [providers, versions]
+    resource: providers.versions
+
+  - path: [providers, specifications]
+    resource: providers.specifications
+
+  - path: [providers, tools]
+    resource: providers.tools
+
+  - path: [providers, triggers]
+    resource: providers.triggers
+
+  - path: [providers, categories]
+    resource: providerCategories
+
+  - path: [providers, collections]
+    resource: providerCollections
+
+  - path: [providers, groups]
+    resource: providerGroups
+
+  - path: [providers, publishers]
+    resource: publishers
+
+  - path: [providers, auth-methods]
+    resource: providers.authMethods
+
+  - path: [providers, deployments]
+    resource: providerDeployments
+    include: [list, get, create, update]
+    args:
+      create:
+        provider_id: { flag: provider-id, required: true }
+        name: { flag: name }
+        description: { flag: description }
+        provider_config: { flag: config, type: json }
+
+  - path: [providers, configs]
+    resource: providerDeployments.configs
+
+  - path: [providers, vaults]
+    resource: providerDeployments.configVaults
+
+  - path: [providers, auth-configs]
+    resource: providerDeployments.authConfigs
+
+  - path: [providers, credentials]
+    resource: providerDeployments.authCredentials
+
+  - path: [providers, setup-sessions]
+    resource: providerDeployments.setupSessions
+
+  - path: [custom-providers]
+    resource: customProviders
+    include: [list, get, create, update, archive]
+
+  - path: [custom-providers, versions]
+    resource: customProviders.versions
+
+  - path: [custom-providers, deployments]
+    resource: customProviders.deployments
+
+  - path: [custom-providers, commits]
+    resource: customProviders.commits
+
+  - path: [custom-providers, environments]
+    resource: customProviders.environments
+
+  - path: [identity]
+    resource: identities
+
+  - path: [identity, actors]
+    resource: identityActors
+
+  - path: [identity, credentials]
+    resource: identities.credentials
+
+  - path: [identity, agents]
+    resource: agents
+    include: [list, get]
+
+  - path: [identity, delegations]
+    resource: identities.delegations
+
+  - path: [identity, delegation-configs]
+    resource: identities.delegationConfigs
+
+  - path: [identity, delegation-requests]
+    resource: identities.delegationRequests
+
+  - path: [sessions]
+    resource: sessions
+    include: [list, get, create, update]
+
+  - path: [sessions, messages]
+    resource: sessions.messages
+    args:
+      list:
+        session_id: { positional: true, name: session-id, target: query }
+
+  - path: [sessions, participants]
+    resource: sessions.participants
+
+  - path: [sessions, connections]
+    resource: sessions.connections
+
+  - path: [sessions, events]
+    resource: sessions.events
+
+  - path: [sessions, providers]
+    resource: sessions.providers
+
+  - path: [sessions, errors]
+    resource: sessions.errors
+
+  - path: [sessions, error-groups]
+    resource: sessions.errorGroups
+
+  - path: [sessions, tool-calls]
+    resource: toolCalls
+
+  - path: [sessions, runs]
+    resource: providerRuns
+
+  - path: [sessions, templates]
+    resource: sessionTemplates
+
+  - path: [sessions, templates, providers]
+    resource: sessionTemplates.providers
+
+  - path: [magic-mcp]
+    group: true
+    short: Magic MCP
+
+  - path: [magic-mcp, servers]
+    resource: magicMcpServers
+    args:
+      get:
+        magicMcpServerId: { positional: true, name: server-id }
+      tools:
+        magicMcpServerId: { positional: true, name: server-id }
+      update:
+        magicMcpServerId: { positional: true, name: server-id }
+      delete:
+        magicMcpServerId: { positional: true, name: server-id }
+
+  - path: [magic-mcp, servers, providers]
+    resource: magicMcpServers.providers
+    args:
+      list:
+        magicMcpServerId: { positional: true, name: server-id }
+
+  - path: [magic-mcp, groups]
+    resource: magicMcpGroups
+
+  - path: [magic-mcp, endpoints]
+    resource: magicMcpEndpoints
+
+  - path: [magic-mcp, tokens]
+    resource: magicMcpTokens
+
+  - path: [magic-mcp, sessions]
+    resource: magicMcpSessions
+
+  - path: [skills]
+    resource: skills
+    include: [list, get, create, update, delete]
+
+  - path: [skills, versions]
+    resource: skills.versions
+
+  - path: [skills, items]
+    resource: skills.items
+
+  - path: [skills, agents]
+    resource: skills.agents
+
+  - path: [skills, participants]
+    resource: skills.participants
+
+  - path: [skills, groups]
+    resource: skills.groups
+    include: [list, get, create, update, delete]
+
+  - path: [skills, configurations]
+    resource: skills.configurations
+
+  - path: [skills, templates]
+    resource: skills.templates
+
+  - path: [skills, imports]
+    resource: skills.imports
+
+  - path: [skills, exports]
+    resource: skills.exports
+
+  - path: [skills, merge-requests]
+    resource: skills.mergeRequests
+
+  - path: [skills, plugins]
+    resource: skills.plugins
+    include: [list, get, create, update, archive]
+
+  - path: [skills, marketplaces]
+    resource: skills.marketplaces
+
+  - path: [files]
+    resource: files
+    include: [list, get, delete]
+
+  - path: [files, links]
+    resource: files.links
+
+  - path: [documents]
+    resource: documents
+    include: [list, get, create, update, delete]
+
+  - path: [documents, versions]
+    resource: documents.versions
+
+  - path: [stores]
+    resource: stores
+    include: [list, get, create, update, delete]
+
+  - path: [stores, items]
+    resource: stores.items
+
+  - path: [chat]
+    group: true
+    short: Chat
+
+  - path: [chat, connections]
+    resource: chat.connections
+
+  - path: [chat, instances]
+    resource: chat.instances
+    include: [list, get, create, update, delete]
+
+  - path: [chat, workspaces]
+    resource: chat.workspaces
+
+  - path: [chat, events]
+    resource: chat.events
+
+  - path: [callbacks]
+    resource: callbacks
+
+  - path: [callbacks, events]
+    resource: callbackEvents
+
+  - path: [callbacks, instances]
+    resource: callbackInstances
+
+  - path: [events]
+    resource: events
+
+  - path: [events, destinations]
+    resource: event_destinations
+
+  - path: [events, listeners]
+    resource: eventDestinationListeners
+    include: [list, get, create, delete]
+
+  - path: [network]
+    resource: networks
+
+  - path: [network, enclaves]
+    resource: enclaves
+
+  - path: [network, firewalls]
+    resource: firewalls
+
+  - path: [network, policies]
+    resource: networkPolicies
+
+  - path: [monitoring]
+    group: true
+    short: Monitoring
+
+  - path: [monitoring, monitors]
+    resource: monitors
+
+  - path: [monitoring, alerts]
+    resource: monitorAlerts
+
+  - path: [monitoring, protoguard]
+    resource: protoGuardAlerts
+
+  - path: [portals]
+    resource: portals
+    include: [list, get, create, update]
+
+  - path: [portals, groups]
+    resource: portals.consumerGroups
+
+  - path: [portals, invites]
+    resource: portals.consumerInvites
+
+  - path: [portals, access]
+    resource: portals.access
+
+  - path: [consumers]
+    resource: consumers
+    include: [list, get, create, update]
+
+  - path: [consumers, surfaces]
+    resource: consumerSurfaces
+
+  - path: [integrations]
+    resource: integrations
+    include: [list, get, create, update]
+
+  - path: [integrations, providers]
+    resource: integrations.providers
+
+  - path: [integrations, instances]
+    resource: integrations.instances
+
+  - path: [integrations, setup-sessions]
+    resource: integrations.setupSessions
+    shortcuts:
+      - path: [integrations, setup]
+        method: create
+
+  - path: [api-keys]
+    resource: apiKeys
+
+  - path: [outposts]
+    resource: outposts
+    include: [list, get, create, update, delete, enable, disable]
+
+  - path: [outposts, access]
+    resource: outposts.access
+
+  - path: [outposts, credentials]
+    resource: outposts.credentials

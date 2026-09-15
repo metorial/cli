@@ -5,15 +5,6 @@ import (
 	"strings"
 
 	"github.com/metorial/cli/internal/app"
-	authcmd "github.com/metorial/cli/internal/commands/auth"
-	completioncmd "github.com/metorial/cli/internal/commands/completion"
-	examplecmd "github.com/metorial/cli/internal/commands/example"
-	fetchcmd "github.com/metorial/cli/internal/commands/fetch"
-	instancecmd "github.com/metorial/cli/internal/commands/instance"
-	integrationscmd "github.com/metorial/cli/internal/commands/integrations"
-	resourcescmd "github.com/metorial/cli/internal/commands/resources"
-	settingscmd "github.com/metorial/cli/internal/commands/settings"
-	systemcmd "github.com/metorial/cli/internal/commands/system"
 	"github.com/metorial/cli/internal/commandutil"
 	"github.com/metorial/cli/internal/config"
 	"github.com/metorial/cli/internal/output"
@@ -23,13 +14,56 @@ import (
 	"github.com/spf13/cobra"
 )
 
+type rootKind string
+
+const (
+	rootKindConsumer rootKind = "consumer"
+	rootKindAdmin    rootKind = "admin"
+)
+
+type rootDefinition struct {
+	kind  rootKind
+	use   string
+	short string
+	long  string
+}
+
 func Run() int {
 	application := app.New()
 	return RunArgs(application, nil)
 }
 
 func RunArgs(application *app.App, args []string) int {
-	command, err := NewRootCommand(application)
+	return runRoot(application, args, newConsumerRoot)
+}
+
+func RunAdmin() int {
+	application := app.New()
+	return RunAdminArgs(application, nil)
+}
+
+func RunAdminArgs(application *app.App, args []string) int {
+	return runRoot(application, args, newAdminRoot)
+}
+
+func NewRootCommand(application *app.App) (*cobra.Command, error) {
+	return newConsumerRoot(application)
+}
+
+func NewAdminRootCommand(application *app.App) (*cobra.Command, error) {
+	return newAdminRoot(application)
+}
+
+func newRootCommand(application *app.App) (*cobra.Command, error) {
+	return NewRootCommand(application)
+}
+
+func runRoot(
+	application *app.App,
+	args []string,
+	build func(*app.App) (*cobra.Command, error),
+) int {
+	command, err := build(application)
 	if err != nil {
 		renderCLIError(application, err)
 		return 1
@@ -41,25 +75,28 @@ func RunArgs(application *app.App, args []string) int {
 
 	if err := command.Execute(); err != nil {
 		renderCLIError(application, err)
+		if isMovedError(err) {
+			return 2
+		}
 		return 1
 	}
 
 	return 0
 }
 
-func NewRootCommand(application *app.App) (*cobra.Command, error) {
+func newBaseRoot(application *app.App, definition rootDefinition) (*cobra.Command, *commandutil.RootOptions, commandutil.Context, error) {
 	options := &commandutil.RootOptions{}
 
 	commandutil.RegisterTemplateFuncs()
 
 	store, err := config.OpenStore()
 	if err != nil {
-		return nil, err
+		return nil, nil, commandutil.Context{}, err
 	}
 
 	defaultFormat, err := resolveDefaultOutputFormat(store.Settings().DefaultFormat)
 	if err != nil {
-		return nil, err
+		return nil, nil, commandutil.Context{}, err
 	}
 
 	options.Format = defaultFormat
@@ -67,9 +104,9 @@ func NewRootCommand(application *app.App) (*cobra.Command, error) {
 	ctx := commandutil.NewContext(application, options)
 
 	command := &cobra.Command{
-		Use:           "metorial",
-		Short:         "CLI for the Metorial API and platform",
-		Long:          commandutil.RootLongDescription(),
+		Use:           definition.use,
+		Short:         definition.short,
+		Long:          definition.long,
 		SilenceErrors: true,
 		SilenceUsage:  true,
 		Version:       version.Version,
@@ -89,34 +126,11 @@ func NewRootCommand(application *app.App) (*cobra.Command, error) {
 		return []string{"yaml", "toml", "json", "structured"}, cobra.ShellCompDirectiveNoFileComp
 	})
 
-	command.AddCommand(systemcmd.NewVersionCommand())
-	command.AddCommand(systemcmd.NewFeedbackCommand())
-	command.AddCommand(integrationscmd.NewCommand(ctx))
-	command.AddCommand(fetchcmd.NewCommand(ctx))
-
-	if !commandutil.BrowserShellEnabled() {
-		command.AddCommand(systemcmd.NewUpgradeCommand(application))
-		command.AddCommand(systemcmd.NewOpenCommand())
-		command.AddCommand(authcmd.NewCommand(ctx))
-		command.AddCommand(authcmd.NewLoginCommand(ctx))
-		command.AddCommand(authcmd.NewLogoutCommand())
-		command.AddCommand(instancecmd.NewCommand(ctx))
-		command.AddCommand(authcmd.NewProfileCommand(ctx))
-		command.AddCommand(examplecmd.NewCommand(ctx))
-		command.AddCommand(settingscmd.NewCommand(ctx))
-		command.AddCommand(completioncmd.NewCommand(command.OutOrStdout()))
-	} else {
+	if commandutil.BrowserShellEnabled() {
 		_ = command.PersistentFlags().MarkHidden("api-key")
 		_ = command.PersistentFlags().MarkHidden("api-host")
 		_ = command.PersistentFlags().MarkHidden("instance")
 		_ = command.PersistentFlags().MarkHidden("profile")
-	}
-
-	if err := resourcescmd.AddPublicCommands(command, ctx); err != nil {
-		return nil, err
-	}
-	if err := resourcescmd.AddSessionCommands(command, ctx); err != nil {
-		return nil, err
 	}
 
 	command.PersistentPreRunE = func(command *cobra.Command, args []string) error {
@@ -127,11 +141,7 @@ func NewRootCommand(application *app.App) (*cobra.Command, error) {
 		return update.MaybePrintUpgradeNotice(application.Stderr, application.StderrFeatures())
 	}
 
-	return command, nil
-}
-
-func newRootCommand(application *app.App) (*cobra.Command, error) {
-	return NewRootCommand(application)
+	return command, options, ctx, nil
 }
 
 func newHelpCommand(root *cobra.Command) *cobra.Command {
@@ -160,6 +170,18 @@ func resolveDefaultOutputFormat(raw string) (string, error) {
 }
 
 func renderCLIError(application *app.App, err error) {
+	if moved, ok := asMovedError(err); ok {
+		features := application.StderrFeatures()
+		colors := terminal.NewColorizer(features)
+		_, _ = fmt.Fprintln(application.Stderr, colors.Warning("Command Moved"))
+		_, _ = fmt.Fprintln(application.Stderr)
+		_, _ = fmt.Fprintln(application.Stderr, colors.Muted(moved.Error()))
+		_, _ = fmt.Fprintln(application.Stderr)
+		_, _ = fmt.Fprintln(application.Stderr, colors.Notice("Next step"))
+		_, _ = fmt.Fprintln(application.Stderr, colors.Muted(fmt.Sprintf("Install and run `metorial-admin %s` instead.", moved.Command)))
+		return
+	}
+
 	message := strings.TrimSpace(err.Error())
 	if message == "" {
 		return

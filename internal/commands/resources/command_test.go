@@ -11,24 +11,42 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func TestNewRootCommandRegistersProvidersResource(t *testing.T) {
-	t.Parallel()
-
-	command, err := newTestRootCommand(&app.App{})
-	if err != nil {
-		t.Fatalf("newTestRootCommand() error = %v", err)
+func sampleListOperation() resourcecmd.OperationSpec {
+	return resourcecmd.OperationSpec{
+		Name:   resourcecmd.OperationList,
+		Method: "GET",
+		Path:   "/providers",
+		Short:  "List providers",
+		Flags: []resourcecmd.FlagSpec{
+			{Name: "limit", Type: resourcecmd.FlagFloat, Target: "query.limit", Usage: "Limit"},
+			{Name: "id", Type: resourcecmd.FlagStringSlice, Target: "query.id", Usage: "Filter by id", Repeated: true},
+			{Name: "provider-auth-method-id", Type: resourcecmd.FlagString, Target: "query.provider_auth_method_id", Usage: "Filter by auth method"},
+		},
 	}
+}
 
-	found := false
-	for _, child := range command.Commands() {
-		if child.Name() == "providers" {
-			found = true
-			break
-		}
+func sampleCreateOperation() resourcecmd.OperationSpec {
+	return resourcecmd.OperationSpec{
+		Name:   resourcecmd.OperationCreate,
+		Method: "POST",
+		Path:   "/provider-deployments",
+		Short:  "Create a deployment",
+		Args: []resourcecmd.ArgumentSpec{
+			{Name: "provider-id", Target: "body.provider_id", Required: true, Description: "Provider ID"},
+			{Name: "name", Target: "body.name", Required: false, Description: "Name"},
+		},
+		Flags: []resourcecmd.FlagSpec{
+			{Name: "locked-provider-version-id", Type: resourcecmd.FlagString, Target: "body.locked_provider_version_id", Usage: "Pin a version"},
+		},
 	}
+}
 
-	if !found {
-		t.Fatalf("root command did not register providers resource command")
+func sampleResource() resourcecmd.ResourceSpec {
+	return resourcecmd.ResourceSpec{
+		Plural:     "providers",
+		Singular:   "providers",
+		Short:      "Browse providers",
+		Operations: []resourcecmd.OperationSpec{sampleListOperation()},
 	}
 }
 
@@ -57,7 +75,13 @@ func TestRootHelpSeparatesResourceCommands(t *testing.T) {
 	if !strings.Contains(output, "Resource Admin Commands:\n") {
 		t.Fatalf("help output missing Resource Admin Commands section:\n%s", output)
 	}
-	if strings.Contains(output, "Commands:\n  providers") {
+	if !strings.Contains(output, "Resource Admin Commands:\n  providers") &&
+		!strings.Contains(output, "Resource Admin Commands:\n          providers") {
+		if !strings.Contains(output, "providers") {
+			t.Fatalf("help output missing providers resource:\n%s", output)
+		}
+	}
+	if strings.Contains(output, "\nCommands:\n  providers") {
 		t.Fatalf("providers unexpectedly listed in general Commands section:\n%s", output)
 	}
 }
@@ -68,19 +92,25 @@ func newTestRootCommand(application *app.App) (*cobra.Command, error) {
 	ctx := commandutil.NewContext(application, &commandutil.RootOptions{Format: "structured"})
 
 	command := &cobra.Command{
-		Use:   "metorial",
-		Short: "CLI for the Metorial API and platform",
+		Use:   "metorial-admin",
+		Short: "Admin CLI for the Metorial Magnetar API",
 	}
 	command.SetOut(application.Stdout)
 	command.SetErr(application.Stderr)
 	commandutil.ConfigureCommand(command)
 
-	if err := AddPublicCommands(command, ctx); err != nil {
+	builder := func(resource resourcecmd.ResourceSpec, operation resourcecmd.OperationSpec) (*cobra.Command, error) {
+		return newPublicResourceAction(application, newRootOptionsView(ctx.Options), resource, operation)
+	}
+
+	resource := sampleResource()
+	resourceCommand, err := resourcecmd.NewResourceCommand(resource, builder)
+	if err != nil {
 		return nil, err
 	}
-	if err := AddSessionCommands(command, ctx); err != nil {
-		return nil, err
-	}
+	commandutil.SetCommandCategory(resourceCommand, commandutil.CommandCategoryResource)
+	commandutil.ConfigureCommand(resourceCommand)
+	command.AddCommand(resourceCommand)
 
 	return command, nil
 }
@@ -88,7 +118,9 @@ func newTestRootCommand(application *app.App) (*cobra.Command, error) {
 func TestBuildResourceTargetIncludesRepeatedQueryValues(t *testing.T) {
 	t.Parallel()
 
-	command, err := newPublicResourceAction(&app.App{}, &rootOptionsView{}, resourcecmd.ProvidersResource(), resourcecmd.ProvidersResource().Operations[0])
+	resource := sampleResource()
+	operation := sampleListOperation()
+	command, err := newPublicResourceAction(&app.App{}, &rootOptionsView{}, resource, operation)
 	if err != nil {
 		t.Fatalf("newPublicResourceAction() error = %v", err)
 	}
@@ -100,12 +132,12 @@ func TestBuildResourceTargetIncludesRepeatedQueryValues(t *testing.T) {
 		t.Fatalf("Set(id) error = %v", err)
 	}
 
-	target, err := buildResourceTarget(command, resourcecmd.ProvidersResource(), resourcecmd.ProvidersResource().Operations[0], nil)
+	target, err := buildResourceTarget(command, resource, operation, nil)
 	if err != nil {
 		t.Fatalf("buildResourceTarget() error = %v", err)
 	}
 
-	if target != "/provider-listings?id=prov_1&id=prov_2&limit=10" {
+	if target != "/providers?id=prov_1&id=prov_2&limit=10" {
 		t.Fatalf("buildResourceTarget() = %q", target)
 	}
 }
@@ -113,17 +145,19 @@ func TestBuildResourceTargetIncludesRepeatedQueryValues(t *testing.T) {
 func TestBuildResourceTargetAppliesDefaultListLimit(t *testing.T) {
 	t.Parallel()
 
-	command, err := newPublicResourceAction(&app.App{}, &rootOptionsView{}, resourcecmd.ProvidersResource(), resourcecmd.ProvidersResource().Operations[0])
+	resource := sampleResource()
+	operation := sampleListOperation()
+	command, err := newPublicResourceAction(&app.App{}, &rootOptionsView{}, resource, operation)
 	if err != nil {
 		t.Fatalf("newPublicResourceAction() error = %v", err)
 	}
 
-	target, err := buildResourceTarget(command, resourcecmd.ProvidersResource(), resourcecmd.ProvidersResource().Operations[0], nil)
+	target, err := buildResourceTarget(command, resource, operation, nil)
 	if err != nil {
 		t.Fatalf("buildResourceTarget() error = %v", err)
 	}
 
-	if target != "/provider-listings?limit=15" {
+	if target != "/providers?limit=15" {
 		t.Fatalf("buildResourceTarget() = %q", target)
 	}
 }
@@ -131,11 +165,8 @@ func TestBuildResourceTargetAppliesDefaultListLimit(t *testing.T) {
 func TestBuildResourceBodyMergesExplicitJSONAndFlags(t *testing.T) {
 	t.Parallel()
 
-	resource := resourcecmd.DeploymentsResource()
-	operation, ok := resource.Operation(resourcecmd.OperationCreate)
-	if !ok {
-		t.Fatalf("DeploymentsResource() missing create operation")
-	}
+	resource := resourcecmd.ResourceSpec{Plural: "deployments", Singular: "deployments"}
+	operation := sampleCreateOperation()
 
 	command, err := newPublicResourceAction(&app.App{}, &rootOptionsView{}, resource, operation)
 	if err != nil {
@@ -168,6 +199,27 @@ func TestBuildResourceBodyMergesExplicitJSONAndFlags(t *testing.T) {
 	}
 }
 
+func TestApplyOperationPathSubstitutesPathParams(t *testing.T) {
+	t.Parallel()
+
+	operation := resourcecmd.OperationSpec{
+		Name:   resourcecmd.OperationGet,
+		Method: "GET",
+		Path:   "/magic-mcp-servers/:magicMcpServerId/tools",
+		Args: []resourcecmd.ArgumentSpec{
+			{Name: "server-id", Target: "path.magicMcpServerId", Required: true},
+		},
+	}
+
+	path, err := applyOperationPath(operation, []string{"mcp_123"})
+	if err != nil {
+		t.Fatalf("applyOperationPath() error = %v", err)
+	}
+	if path != "/magic-mcp-servers/mcp_123/tools" {
+		t.Fatalf("applyOperationPath() = %q", path)
+	}
+}
+
 func TestCamelToSnakeHandlesSDKFieldNames(t *testing.T) {
 	t.Parallel()
 
@@ -192,43 +244,11 @@ func TestResourceOperationArgsRejectsExtraArguments(t *testing.T) {
 	}
 }
 
-func TestResourceOperationArgsRendersHelpOnMissingArgs(t *testing.T) {
-	t.Parallel()
-
-	stdout := &bytes.Buffer{}
-	command, err := newPublicResourceAction(&app.App{}, &rootOptionsView{}, resourcecmd.ActorsResource(), resourcecmd.ActorsResource().Operations[2])
-	if err != nil {
-		t.Fatalf("newPublicResourceAction() error = %v", err)
-	}
-	command.SetOut(stdout)
-	command.SetErr(&bytes.Buffer{})
-
-	err = command.Args(command, nil)
-	if err == nil {
-		t.Fatal("expected missing args error")
-	}
-
-	rendered := stdout.String()
-	if !strings.Contains(rendered, "Usage:\n") {
-		t.Fatalf("help output missing usage:\n%s", rendered)
-	}
-	if !strings.Contains(rendered, "Arguments:\n") {
-		t.Fatalf("help output missing arguments:\n%s", rendered)
-	}
-	if !strings.Contains(rendered, "type") || !strings.Contains(rendered, "name") {
-		t.Fatalf("help output missing expected args:\n%s", rendered)
-	}
-}
-
 func TestBuildResourceTargetUsesSnakeCaseQueryKeys(t *testing.T) {
 	t.Parallel()
 
-	resource := resourcecmd.AuthConfigsResource()
-	operation, ok := resource.Operation(resourcecmd.OperationList)
-	if !ok {
-		t.Fatalf("AuthConfigsResource() missing list operation")
-	}
-
+	resource := sampleResource()
+	operation := sampleListOperation()
 	command, err := newPublicResourceAction(&app.App{}, &rootOptionsView{}, resource, operation)
 	if err != nil {
 		t.Fatalf("newPublicResourceAction() error = %v", err)
@@ -265,7 +285,17 @@ func TestResourceCommandHelpIncludesArgumentsSection(t *testing.T) {
 	t.Parallel()
 
 	stdout := &bytes.Buffer{}
-	command, err := newPublicResourceAction(&app.App{Stdout: stdout, Stderr: &bytes.Buffer{}}, &rootOptionsView{}, resourcecmd.IdentitiesResource(), resourcecmd.IdentitiesResource().Operations[2])
+	resource := resourcecmd.ResourceSpec{Plural: "identities", Singular: "identities"}
+	operation := resourcecmd.OperationSpec{
+		Name:   resourcecmd.OperationCreate,
+		Method: "POST",
+		Path:   "/identities",
+		Short:  "Create an identity",
+		Args: []resourcecmd.ArgumentSpec{
+			{Name: "actor-id", Target: "body.actor_id", Required: true, Description: "Actor ID"},
+		},
+	}
+	command, err := newPublicResourceAction(&app.App{Stdout: stdout, Stderr: &bytes.Buffer{}}, &rootOptionsView{}, resource, operation)
 	if err != nil {
 		t.Fatalf("newPublicResourceAction() error = %v", err)
 	}

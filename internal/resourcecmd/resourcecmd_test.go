@@ -1,6 +1,10 @@
 package resourcecmd
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/spf13/cobra"
+)
 
 func TestResourceSpecNames(t *testing.T) {
 	t.Parallel()
@@ -20,40 +24,81 @@ func TestResourceSpecNames(t *testing.T) {
 	}
 }
 
-func TestPublicResourcePlanContainsConfigs(t *testing.T) {
+func TestNewResourceCommandNestsChildren(t *testing.T) {
 	t.Parallel()
 
-	found := false
-	for _, group := range PublicResourcePlan() {
-		for _, resource := range group.Resources {
-			if resource.Plural == "configs" && resource.Singular == "config" && resource.PathPlural == "provider-configs" {
-				found = true
-			}
-		}
+	spec := ResourceSpec{
+		Plural:   "sessions",
+		Singular: "sessions",
+		Short:    "Manage sessions",
+		Operations: []OperationSpec{
+			{Name: OperationList, Method: "GET", Path: "/sessions", Short: "List sessions"},
+		},
+		Children: []ResourceSpec{
+			{
+				Plural:   "messages",
+				Singular: "messages",
+				Short:    "Session messages",
+				Operations: []OperationSpec{
+					{Name: OperationList, Method: "GET", Path: "/session-messages", Short: "List messages"},
+				},
+			},
+		},
 	}
 
-	if !found {
-		t.Fatalf("PublicResourcePlan() missing configs resource")
+	command, err := NewResourceCommand(spec, func(resource ResourceSpec, operation OperationSpec) (*cobra.Command, error) {
+		return NewPlaceholderAction(resource, operation), nil
+	})
+	if err != nil {
+		t.Fatalf("NewResourceCommand() error = %v", err)
+	}
+
+	if findDirectCommand(command, "list") == nil {
+		t.Fatalf("missing list command")
+	}
+	if findDirectCommand(command, "messages") == nil {
+		t.Fatalf("missing nested messages command")
 	}
 }
 
-func TestProvidersResourceHasExplicitFlagMapping(t *testing.T) {
+func TestAddShortcutsRegistersSiblingCommand(t *testing.T) {
 	t.Parallel()
 
-	resource := ProvidersResource()
-	operation, ok := resource.Operation(OperationList)
-	if !ok {
-		t.Fatalf("ProvidersResource() missing list operation")
+	root := &cobra.Command{Use: "metorial-admin"}
+	spec := ResourceSpec{
+		Plural:   "integrations",
+		Singular: "integrations",
+		Short:    "Integrations",
+		Children: []ResourceSpec{
+			{
+				Plural:   "setup-sessions",
+				Singular: "setup-sessions",
+				Short:    "Setup sessions",
+				Operations: []OperationSpec{
+					{Name: OperationCreate, Method: "POST", Path: "/integration-setup-sessions", Short: "Create setup session"},
+				},
+				Shortcuts: []ShortcutSpec{
+					{Path: []string{"integrations", "setup"}, Method: OperationCreate},
+				},
+			},
+		},
 	}
 
-	found := false
-	for _, flag := range operation.Flags {
-		if flag.Name == "id" && flag.Target == "params.Id" {
-			found = true
-		}
+	command, err := NewResourceCommand(spec, func(resource ResourceSpec, operation OperationSpec) (*cobra.Command, error) {
+		return NewPlaceholderAction(resource, operation), nil
+	})
+	if err != nil {
+		t.Fatalf("NewResourceCommand() error = %v", err)
+	}
+	root.AddCommand(command)
+
+	if err := AddShortcuts(root, spec, func(resource ResourceSpec, operation OperationSpec) (*cobra.Command, error) {
+		return NewPlaceholderAction(resource, operation), nil
+	}); err != nil {
+		t.Fatalf("AddShortcuts() error = %v", err)
 	}
 
-	if !found {
-		t.Fatalf("ProvidersResource() list operation missing explicit id flag mapping")
+	if CommandByName(command, "setup") == nil {
+		t.Fatal("missing integrations setup shortcut")
 	}
 }

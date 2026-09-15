@@ -158,8 +158,8 @@ func NewCommand(ctx commandutil.Context) *cobra.Command {
 Browse official Metorial examples from the public CLI manifest and clone one
 into a local directory.
 
-Use "metorial example list" to see available examples. Use
-"metorial example create <identifier> [path]" to download an example, prepare
+Use "metorial-admin example list" to see available examples. Use
+"metorial-admin example create <identifier> [path]" to download an example, prepare
 the target folder, copy .env.example to .env when available, and install
 dependencies when a supported package manager is present.
 `),
@@ -189,7 +189,7 @@ dependencies when a supported package manager is present.
 
 			colors := terminal.NewColorizer(application.StdoutFeatures())
 			_, _ = fmt.Fprintln(command.OutOrStdout(), colors.Bold("Available Examples"))
-			_, _ = fmt.Fprintln(command.OutOrStdout(), colors.Muted("Use one of these identifiers with `metorial example create <identifier>`."))
+			_, _ = fmt.Fprintln(command.OutOrStdout(), colors.Muted("Use one of these identifiers with `metorial-admin example create <identifier>`."))
 			_, _ = fmt.Fprintln(command.OutOrStdout())
 
 			table := output.Table{
@@ -216,7 +216,7 @@ dependencies when a supported package manager is present.
 
 			if len(records) > 0 {
 				_, _ = fmt.Fprintln(command.OutOrStdout())
-				_, _ = fmt.Fprintf(command.OutOrStdout(), "%s `metorial example create %s`\n", colors.Notice("Clone an example with"), records[0].Identifier)
+				_, _ = fmt.Fprintf(command.OutOrStdout(), "%s `metorial-admin example create %s`\n", colors.Notice("Clone an example with"), records[0].Identifier)
 			}
 
 			return nil
@@ -483,7 +483,7 @@ func findExampleRecord(records []exampleRecord, identifier string) (*exampleReco
 		}
 	}
 
-	return nil, fmt.Errorf("metorial: example %q was not found.\nRun \"metorial example list\" to see available examples.", identifier)
+	return nil, fmt.Errorf("metorial: example %q was not found.\nRun \"metorial-admin example list\" to see available examples.", identifier)
 }
 
 func parseExampleRepositoryTarget(value string) (string, string, bool) {

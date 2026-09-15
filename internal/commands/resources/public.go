@@ -12,6 +12,7 @@ import (
 	"github.com/metorial/cli/internal/app"
 	"github.com/metorial/cli/internal/commandutil"
 	"github.com/metorial/cli/internal/fetch"
+	generatedadmin "github.com/metorial/cli/internal/generated/admin"
 	"github.com/metorial/cli/internal/output"
 	"github.com/metorial/cli/internal/resourcecmd"
 	"github.com/spf13/cobra"
@@ -60,30 +61,55 @@ func (v *rootOptionsView) format() string {
 	return v.options.Format
 }
 
-func AddPublicCommands(
+func AddGeneratedCommands(
 	root *cobra.Command,
 	ctx commandutil.Context,
 ) error {
 	application := ctx.App
 	rootOptions := newRootOptionsView(ctx.Options)
-	plan := resourcecmd.PublicResourcePlan()
+	builder := func(resource resourcecmd.ResourceSpec, operation resourcecmd.OperationSpec) (*cobra.Command, error) {
+		return newPublicResourceAction(application, rootOptions, resource, operation)
+	}
 
-	for _, group := range plan {
-		for _, resource := range group.Resources {
-			if resource.Plural == "instance" {
-				continue
-			}
+	for _, resource := range generatedadmin.Catalog() {
+		if existingGeneratedCommand(root, resource) != nil {
+			continue
+		}
 
-			command, err := resourcecmd.NewResourceCommand(resource, func(resource resourcecmd.ResourceSpec, operation resourcecmd.OperationSpec) (*cobra.Command, error) {
-				return newPublicResourceAction(application, rootOptions, resource, operation)
-			})
-			if err != nil {
-				return err
-			}
+		command, err := resourcecmd.NewResourceCommand(resource, builder)
+		if err != nil {
+			return err
+		}
 
-			commandutil.SetCommandCategory(command, commandutil.CommandCategoryResource)
-			commandutil.ConfigureCommand(command)
-			root.AddCommand(command)
+		commandutil.SetCommandCategory(command, commandutil.CommandCategoryResource)
+		commandutil.ConfigureCommand(command)
+		root.AddCommand(command)
+	}
+
+	for _, resource := range generatedadmin.Catalog() {
+		if err := resourcecmd.AddShortcuts(root, resource, builder); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func AddPublicCommands(
+	root *cobra.Command,
+	ctx commandutil.Context,
+) error {
+	return AddGeneratedCommands(root, ctx)
+}
+
+func existingGeneratedCommand(root *cobra.Command, resource resourcecmd.ResourceSpec) *cobra.Command {
+	if found := resourcecmd.CommandByName(root, resource.Plural); found != nil {
+		return found
+	}
+
+	for _, alias := range resource.Aliases {
+		if found := resourcecmd.CommandByName(root, alias); found != nil {
+			return found
 		}
 	}
 
@@ -196,7 +222,7 @@ func buildResourceFetchOptions(
 	operation resourcecmd.OperationSpec,
 	args []string,
 ) (fetch.Options, error) {
-	method, err := resourceOperationMethod(operation.Name)
+	method, err := resourceOperationMethod(operation)
 	if err != nil {
 		return fetch.Options{}, err
 	}
@@ -240,7 +266,7 @@ func buildResourceTarget(
 	}
 
 	values := url.Values{}
-	if resource.Plural == "providers" && operation.Name == resourcecmd.OperationGet {
+	if strings.TrimSpace(operation.Path) == "" && resource.Plural == "providers" && operation.Name == resourcecmd.OperationGet {
 		if len(args) == 0 {
 			return "", fmt.Errorf("metorial: missing required provider identifier")
 		}
@@ -249,18 +275,18 @@ func buildResourceTarget(
 	}
 
 	for index, arg := range operation.Args {
-		if !strings.HasPrefix(arg.Target, "params.") {
+		if !isQueryTarget(arg.Target) {
 			continue
 		}
 		if index >= len(args) {
 			continue
 		}
 
-		values.Add(paramFlagKey(arg.Target), args[index])
+		values.Add(queryFlagKey(arg.Target), args[index])
 	}
 
 	for _, flag := range operation.Flags {
-		if !strings.HasPrefix(flag.Target, "params.") {
+		if !isQueryTarget(flag.Target) {
 			continue
 		}
 		if !command.Flags().Changed(flag.Name) {
@@ -273,32 +299,32 @@ func buildResourceTarget(
 			if err != nil {
 				return "", err
 			}
-			values.Add(paramFlagKey(flag.Target), value)
+			values.Add(queryFlagKey(flag.Target), value)
 		case resourcecmd.FlagBool:
 			value, err := command.Flags().GetBool(flag.Name)
 			if err != nil {
 				return "", err
 			}
-			values.Add(paramFlagKey(flag.Target), strconv.FormatBool(value))
+			values.Add(queryFlagKey(flag.Target), strconv.FormatBool(value))
 		case resourcecmd.FlagInt:
 			value, err := command.Flags().GetInt(flag.Name)
 			if err != nil {
 				return "", err
 			}
-			values.Add(paramFlagKey(flag.Target), strconv.Itoa(value))
+			values.Add(queryFlagKey(flag.Target), strconv.Itoa(value))
 		case resourcecmd.FlagFloat:
 			value, err := command.Flags().GetFloat64(flag.Name)
 			if err != nil {
 				return "", err
 			}
-			values.Add(paramFlagKey(flag.Target), strconv.FormatFloat(value, 'f', -1, 64))
+			values.Add(queryFlagKey(flag.Target), strconv.FormatFloat(value, 'f', -1, 64))
 		case resourcecmd.FlagStringSlice:
 			valuesSlice, err := command.Flags().GetStringSlice(flag.Name)
 			if err != nil {
 				return "", err
 			}
 			for _, value := range valuesSlice {
-				values.Add(paramFlagKey(flag.Target), value)
+				values.Add(queryFlagKey(flag.Target), value)
 			}
 		}
 	}
@@ -388,12 +414,12 @@ func buildResourceBody(command *cobra.Command, resource resourcecmd.ResourceSpec
 }
 
 func applyDefaultListLimit(command *cobra.Command, operation resourcecmd.OperationSpec, values url.Values) error {
-	if operation.Name != resourcecmd.OperationList {
+	if operation.Name != resourcecmd.OperationList && strings.ToLower(string(operation.Name)) != "list" {
 		return nil
 	}
 
 	for _, flag := range operation.Flags {
-		if flag.Name != "limit" || flag.Target != "params.Limit" {
+		if flag.Name != "limit" || (flag.Target != "params.Limit" && flag.Target != "query.limit" && flag.Target != "params.limit") {
 			continue
 		}
 		if command.Flags().Changed("limit") {
@@ -453,19 +479,35 @@ func bodyFlagKey(target string) string {
 	if field == target {
 		return target
 	}
+	return jsonFieldName(field)
+}
+
+func isQueryTarget(target string) bool {
+	return strings.HasPrefix(target, "params.") || strings.HasPrefix(target, "query.")
+}
+
+func jsonFieldName(field string) string {
+	if strings.Contains(field, "_") || field == strings.ToLower(field) {
+		return field
+	}
 	return camelToSnake(field)
 }
 
-func paramFlagKey(target string) string {
+func queryFlagKey(target string) string {
 	field := strings.TrimPrefix(target, "params.")
+	field = strings.TrimPrefix(field, "query.")
 	if field == target {
 		return target
 	}
 
-	return camelToSnake(field)
+	return jsonFieldName(field)
 }
 
 func resourceOperationPath(resource resourcecmd.ResourceSpec, operation resourcecmd.OperationSpec, args []string) (string, error) {
+	if strings.TrimSpace(operation.Path) != "" {
+		return applyOperationPath(operation, args)
+	}
+
 	if resource.Plural == "providers" {
 		return providerOperationPath(operation, args)
 	}
@@ -482,7 +524,7 @@ func resourceOperationPath(resource resourcecmd.ResourceSpec, operation resource
 		if len(args) == 0 {
 			return "", fmt.Errorf("metorial: missing required resource identifier")
 		}
-		return "/" + pathPlural + "/" + args[0], nil
+		return "/" + pathPlural + "/" + url.PathEscape(args[0]), nil
 	case resourcecmd.OperationGetSchema:
 		if pathPlural == "provider-configs" {
 			return "/provider-config-schema", nil
@@ -490,6 +532,81 @@ func resourceOperationPath(resource resourcecmd.ResourceSpec, operation resource
 	}
 
 	return "", fmt.Errorf("metorial: %s %s is not implemented yet", resource.Plural, operation.Name)
+}
+
+func applyOperationPath(operation resourcecmd.OperationSpec, args []string) (string, error) {
+	path := operation.Path
+	placeholders := pathPlaceholders(path)
+	values := map[string]string{}
+
+	for index, arg := range operation.Args {
+		name := pathTargetName(arg.Target)
+		if name == "" {
+			continue
+		}
+		if index >= len(args) {
+			if arg.Required {
+				return "", fmt.Errorf("metorial: missing required %s", arg.Name)
+			}
+			continue
+		}
+		values[name] = args[index]
+	}
+
+	unusedArgs := make([]string, 0, len(args))
+	used := map[int]bool{}
+	for index, arg := range operation.Args {
+		if pathTargetName(arg.Target) == "" {
+			continue
+		}
+		if index < len(args) {
+			used[index] = true
+		}
+	}
+	for index, arg := range args {
+		if !used[index] {
+			unusedArgs = append(unusedArgs, arg)
+		}
+	}
+
+	unusedIndex := 0
+	for _, placeholder := range placeholders {
+		if _, ok := values[placeholder]; ok {
+			continue
+		}
+		if unusedIndex >= len(unusedArgs) {
+			return "", fmt.Errorf("metorial: missing required path parameter %s", placeholder)
+		}
+		values[placeholder] = unusedArgs[unusedIndex]
+		unusedIndex++
+	}
+
+	for _, placeholder := range placeholders {
+		value, ok := values[placeholder]
+		if !ok {
+			return "", fmt.Errorf("metorial: missing required path parameter %s", placeholder)
+		}
+		path = strings.Replace(path, ":"+placeholder, url.PathEscape(value), 1)
+	}
+
+	return path, nil
+}
+
+func pathPlaceholders(path string) []string {
+	placeholders := []string{}
+	for _, part := range strings.Split(path, "/") {
+		if strings.HasPrefix(part, ":") && len(part) > 1 {
+			placeholders = append(placeholders, part[1:])
+		}
+	}
+	return placeholders
+}
+
+func pathTargetName(target string) string {
+	if strings.HasPrefix(target, "path.") {
+		return strings.TrimPrefix(target, "path.")
+	}
+	return ""
 }
 
 func providerOperationPath(operation resourcecmd.OperationSpec, args []string) (string, error) {
@@ -506,8 +623,12 @@ func providerOperationPath(operation resourcecmd.OperationSpec, args []string) (
 	}
 }
 
-func resourceOperationMethod(name resourcecmd.OperationName) (string, error) {
-	switch name {
+func resourceOperationMethod(operation resourcecmd.OperationSpec) (string, error) {
+	if method := strings.ToUpper(strings.TrimSpace(operation.Method)); method != "" {
+		return method, nil
+	}
+
+	switch operation.Name {
 	case resourcecmd.OperationList, resourcecmd.OperationGet, resourcecmd.OperationGetSchema:
 		return "GET", nil
 	case resourcecmd.OperationCreate:
@@ -517,11 +638,15 @@ func resourceOperationMethod(name resourcecmd.OperationName) (string, error) {
 	case resourcecmd.OperationDelete:
 		return "DELETE", nil
 	default:
-		return "", fmt.Errorf("metorial: operation %q is not implemented yet", name)
+		return "", fmt.Errorf("metorial: operation %q is not implemented yet", operation.Name)
 	}
 }
 
 func operationUsesBody(operation resourcecmd.OperationSpec) bool {
+	if method := strings.ToUpper(strings.TrimSpace(operation.Method)); method != "" {
+		return method == "POST" || method == "PUT" || method == "PATCH"
+	}
+
 	switch operation.Name {
 	case resourcecmd.OperationCreate, resourcecmd.OperationUpdate:
 		return true

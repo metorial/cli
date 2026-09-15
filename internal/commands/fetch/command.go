@@ -26,10 +26,10 @@ Use --profile to override the selected saved profile for this command. Use the
 global --format flag to switch between YAML, TOML, JSON, and structured output.
 
 Examples:
-  metorial fetch /provider-listings
-  metorial fetch /provider-listings -H 'X-Debug: true'
-  metorial fetch /provider-listings -X POST -d '{"name":"demo"}'
-  metorial curl https://api.metorial.com/provider-listings -i
+  metorial-admin fetch /provider-listings
+  metorial-admin fetch /provider-listings -H 'X-Debug: true'
+  metorial-admin fetch /provider-listings -X POST -d '{"name":"demo"}'
+  metorial-admin curl https://api.metorial.com/provider-listings -i
 `),
 		Args: cobra.ExactArgs(1),
 		RunE: func(command *cobra.Command, args []string) error {
