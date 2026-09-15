@@ -1,0 +1,12 @@
+{
+  "name": "@metorial/cli-generator",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "generate": "bun ./src/index.ts",
+    "start": "bun ./src/index.ts"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  }
+}
