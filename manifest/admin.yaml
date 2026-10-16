@@ -257,6 +257,63 @@ commands:
   - path: [stores, items]
     resource: stores.items
 
+  - path: [sandbox]
+    group: true
+    short: Sandboxes
+
+  - path: [sandbox, machines]
+    resource: sandbox.machines
+
+  - path: [sandbox, machines, access]
+    resource: sandbox.machines.access
+    short: Sandbox machine access
+
+  - path: [sandbox, machines, instances]
+    resource: sandbox.machines.instances
+
+  - path: [sandbox, machines, operations]
+    resource: sandbox.machines.operations
+
+  - path: [sandbox, machines, events]
+    resource: sandbox.machines.events
+
+  - path: [sandbox, machines, errors]
+    resource: sandbox.machines.errors
+
+  - path: [sandbox, machines, usage-history]
+    resource: sandbox.machines.usage
+
+  - path: [sandbox, images]
+    resource: sandbox.images
+
+  - path: [sandbox, images, versions]
+    resource: sandbox.images.versions
+    short: Sandbox image versions
+
+  - path: [sandbox, images, builds]
+    resource: sandbox.images.builds
+    short: Sandbox builds of an image
+
+  - path: [sandbox, image-builds]
+    resource: sandbox.imageBuilds
+    short: Sandbox image builds across all images
+
+  - path: [sandbox, disks]
+    resource: sandbox.disks
+
+  - path: [sandbox, disks, mounts]
+    resource: sandbox.disks.mounts
+    short: Sandbox disk mounts
+
+  - path: [sandbox, disks, resizes]
+    resource: sandbox.disks.resizes
+
+  - path: [sandbox, regions]
+    resource: sandbox.regions
+
+  - path: [sandbox, specs]
+    resource: sandbox.specs
+
   - path: [chat]
     group: true
     short: Chat
@@ -294,13 +351,20 @@ commands:
     include: [list, get, create, delete]
 
   - path: [network]
-    resource: networks
+    group: true
+    short: Network Access
 
   - path: [network, enclaves]
-    resource: enclaves
+    resource: integrationEnclaves
+
+  - path: [network, internet-gateway]
+    resource: integrationInternetGateway
 
   - path: [network, firewalls]
     resource: firewalls
+
+  - path: [network, firewall-assignments]
+    resource: integrationFirewallAssignments
 
   - path: [network, policies]
     resource: networkPolicies

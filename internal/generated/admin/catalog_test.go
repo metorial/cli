@@ -1,6 +1,10 @@
 package admin
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/metorial/cli/internal/resourcecmd"
+)
 
 func TestCatalogIncludesCoreResources(t *testing.T) {
 	t.Parallel()
@@ -51,5 +55,47 @@ func TestCatalogIncludesCoreResources(t *testing.T) {
 	}
 	if !hasSetupShortcut {
 		t.Fatal("catalog missing integrations setup shortcut")
+	}
+}
+
+func TestCatalogSandboxMachinesKeepsUsageApartFromUsageHistory(t *testing.T) {
+	t.Parallel()
+
+	var machines *resourcecmd.ResourceSpec
+	for _, resource := range Catalog() {
+		if resource.Plural != "sandbox" {
+			continue
+		}
+		for i := range resource.Children {
+			if resource.Children[i].Plural == "machines" {
+				machines = &resource.Children[i]
+			}
+		}
+	}
+	if machines == nil {
+		t.Fatal("catalog missing sandbox machines")
+	}
+
+	hasUsageOperation := false
+	for _, operation := range machines.Operations {
+		if operation.Name == "usage" && operation.SDKMapping == "sandbox.machines.usage" {
+			hasUsageOperation = true
+		}
+	}
+	if !hasUsageOperation {
+		t.Fatal("sandbox machines missing usage operation")
+	}
+
+	hasUsageHistory := false
+	for _, child := range machines.Children {
+		if child.Plural == "usage" {
+			t.Fatal("sandbox machines child named usage collides with the usage operation")
+		}
+		if child.Plural == "usage-history" {
+			hasUsageHistory = true
+		}
+	}
+	if !hasUsageHistory {
+		t.Fatal("sandbox machines missing usage-history child")
 	}
 }
