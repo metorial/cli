@@ -8,6 +8,7 @@ import (
 	fetchcmd "github.com/metorial/cli/internal/commands/fetch"
 	instancecmd "github.com/metorial/cli/internal/commands/instance"
 	resourcescmd "github.com/metorial/cli/internal/commands/resources"
+	sandboxcmd "github.com/metorial/cli/internal/commands/sandbox"
 	settingscmd "github.com/metorial/cli/internal/commands/settings"
 	systemcmd "github.com/metorial/cli/internal/commands/system"
 	"github.com/metorial/cli/internal/commandutil"
@@ -43,6 +44,9 @@ func newAdminRoot(application *app.App) (*cobra.Command, error) {
 	}
 
 	if err := resourcescmd.AddGeneratedCommands(command, ctx); err != nil {
+		return nil, err
+	}
+	if err := sandboxcmd.Attach(command, ctx); err != nil {
 		return nil, err
 	}
 

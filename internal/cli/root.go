@@ -74,6 +74,9 @@ func runRoot(
 	}
 
 	if err := command.Execute(); err != nil {
+		if code, ok := commandutil.ExitCode(err); ok {
+			return code
+		}
 		renderCLIError(application, err)
 		if isMovedError(err) {
 			return 2

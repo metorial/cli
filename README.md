@@ -90,6 +90,28 @@ make generate
 
 The generator reads `manifest/admin.yaml` and writes `internal/generated/admin/catalog.go`.
 
+### Sandbox shells and files
+
+`sandbox machines shell` and `sandbox machines files` are hand-written and connect directly to a running sandbox machine.
+
+```bash
+# Interactive login shell (like ssh); dropped connections resume automatically
+metorial-admin sandbox machines shell <machine-id>
+
+# Run one command; stdout/stderr stay separate and the exit code is passed through
+metorial-admin sandbox machines shell <machine-id> -- ls -la /workspace
+metorial-admin sandbox machines shell <machine-id> --cwd /workspace -e DEBUG=1 -- npm test
+
+# Browse and transfer files (remote paths are absolute)
+metorial-admin sandbox machines files ls <machine-id> /workspace
+metorial-admin sandbox machines files cat <machine-id> /etc/os-release
+metorial-admin sandbox machines files download <machine-id> /workspace/report.pdf
+metorial-admin sandbox machines files download <machine-id> /workspace ./backup -r
+metorial-admin sandbox machines files upload <machine-id> ./app /workspace -r
+echo hello | metorial-admin sandbox machines files upload <machine-id> - /tmp/hello.txt
+metorial-admin sandbox machines files rm <machine-id> /workspace/tmp -r
+```
+
 ## Help
 
 ```bash

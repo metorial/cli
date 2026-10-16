@@ -3,6 +3,7 @@ module github.com/metorial/cli
 go 1.25.0
 
 require (
+	github.com/coder/websocket v1.8.15
 	github.com/google/jsonschema-go v0.4.2
 	github.com/manifoldco/promptui v0.9.0
 	github.com/metorial/metorial-go v0.0.0-20260403143502-71d28d31f58d
