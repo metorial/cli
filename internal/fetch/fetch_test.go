@@ -1,8 +1,14 @@
 package fetch
 
 import (
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
+
+	"github.com/metorial/cli/internal/config"
 )
 
 func TestResolveURL(t *testing.T) {
@@ -45,5 +51,54 @@ func TestResolveURL(t *testing.T) {
 				t.Fatalf("ResolveURL() = %q, want %q", got.String(), tt.want)
 			}
 		})
+	}
+}
+
+func TestDoRetriesOnceWithRefreshedCredentials(t *testing.T) {
+	t.Parallel()
+
+	authorizations := []string{}
+	bodies := []string{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		authorizations = append(authorizations, r.Header.Get("Authorization"))
+		body, _ := io.ReadAll(r.Body)
+		bodies = append(bodies, string(body))
+		if strings.Contains(r.Header.Get("Authorization"), "expired") {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	hostURL, err := url.Parse(server.URL)
+	if err != nil {
+		t.Fatalf("url.Parse() error = %v", err)
+	}
+	runtime := config.Runtime{APIKey: "expired", APIHost: server.URL, APIHostURL: hostURL}
+	runtime.Refresh = func(bool) (config.Runtime, error) {
+		refreshed := runtime
+		refreshed.APIKey = "fresh"
+		refreshed.Refresh = nil
+		return refreshed, nil
+	}
+
+	response, err := Do(runtime, Request{
+		Method:  http.MethodPost,
+		Target:  "/files",
+		Headers: map[string]string{"Content-Type": "text/plain"},
+		Body:    []byte("payload"),
+	})
+	if err != nil {
+		t.Fatalf("Do() error = %v", err)
+	}
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("Do() status = %d, want 200", response.StatusCode)
+	}
+	if len(authorizations) != 2 || !strings.Contains(authorizations[1], "fresh") {
+		t.Fatalf("authorizations = %v, want a retry with the refreshed key", authorizations)
+	}
+	if bodies[1] != "payload" {
+		t.Fatalf("retried body = %q, want the original payload", bodies[1])
 	}
 }

@@ -60,13 +60,36 @@ func execute(runtime config.Runtime, opts Options, stdin io.Reader, allowRefresh
 		}
 	}
 
-	method := resolveMethod(opts.Method, len(payload) > 0)
+	headerMap := map[string]string{}
+	for key, values := range headers {
+		headerMap[key] = strings.Join(values, ", ")
+	}
 
+	return send(runtime, requestURL, resolveMethod(opts.Method, len(payload) > 0), headerMap, payload, allowRefresh)
+}
+
+type Request struct {
+	Method  string
+	Target  string
+	Headers map[string]string
+	Body    []byte
+}
+
+func Do(runtime config.Runtime, request Request) (*Response, error) {
+	requestURL, err := ResolveURL(runtime.APIHostURL, request.Target)
+	if err != nil {
+		return nil, err
+	}
+
+	return send(runtime, requestURL, resolveMethod(request.Method, len(request.Body) > 0), request.Headers, request.Body, true)
+}
+
+func send(runtime config.Runtime, requestURL *url.URL, method string, headers map[string]string, payload []byte, allowRefresh bool) (*Response, error) {
 	headerMap := map[string]string{
 		"User-Agent": userAgent + "/" + version.Version,
 	}
-	for key, values := range headers {
-		headerMap[key] = strings.Join(values, ", ")
+	for key, value := range headers {
+		headerMap[key] = value
 	}
 
 	if len(payload) > 0 && headerMap["Content-Type"] == "" && looksLikeJSONBody(payload) {
@@ -98,7 +121,7 @@ func execute(runtime config.Runtime, opts Options, stdin io.Reader, allowRefresh
 	if result.StatusCode == 401 && allowRefresh && runtime.Refresh != nil {
 		refreshedRuntime, refreshErr := runtime.Refresh(true)
 		if refreshErr == nil && strings.TrimSpace(refreshedRuntime.APIKey) != "" && refreshedRuntime.APIKey != runtime.APIKey {
-			return execute(refreshedRuntime, opts, bytes.NewReader(payload), false)
+			return send(refreshedRuntime, requestURL, method, headers, payload, false)
 		}
 	}
 

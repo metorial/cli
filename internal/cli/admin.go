@@ -7,6 +7,7 @@ import (
 	completioncmd "github.com/metorial/cli/internal/commands/completion"
 	examplecmd "github.com/metorial/cli/internal/commands/example"
 	fetchcmd "github.com/metorial/cli/internal/commands/fetch"
+	filescmd "github.com/metorial/cli/internal/commands/files"
 	instancecmd "github.com/metorial/cli/internal/commands/instance"
 	resourcescmd "github.com/metorial/cli/internal/commands/resources"
 	sandboxcmd "github.com/metorial/cli/internal/commands/sandbox"
@@ -47,6 +48,11 @@ func newAdminRoot(application *app.App) (*cobra.Command, error) {
 	}
 	if err := sandboxcmd.Attach(command, ctx); err != nil {
 		return nil, err
+	}
+	if !commandutil.BrowserShellEnabled() {
+		if err := filescmd.Attach(command, ctx); err != nil {
+			return nil, err
+		}
 	}
 
 	return command, nil

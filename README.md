@@ -112,6 +112,16 @@ echo hello | metorial-admin sandbox machines files upload <machine-id> - /tmp/he
 metorial-admin sandbox machines files rm <machine-id> /workspace/tmp -r
 ```
 
+### Uploading files
+
+`files upload` uploads a local file to Metorial. Directories are zipped automatically, with the directory's contents at the root of the archive.
+
+```bash
+metorial-admin files upload ./report.pdf
+metorial-admin files upload ./logo.png --purpose organization_image
+metorial-admin files upload ./build-context --purpose sandbox_image_build_context
+```
+
 ## Help
 
 ```bash

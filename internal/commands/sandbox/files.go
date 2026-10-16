@@ -341,7 +341,7 @@ func writeEntryTable(writer io.Writer, entries []sandboxaccess.FileEntry) error 
 		}
 		fmt.Fprintf(table, "%s\t%s\t%s\t %s\n",
 			modeString(entry.Type, entry.Mode),
-			humanBytes(entry.Size),
+			commandutil.HumanBytes(entry.Size),
 			time.UnixMilli(entry.Mtime).Format("2006-01-02 15:04"),
 			name,
 		)
@@ -369,20 +369,4 @@ func modeString(kind string, mode uint32) string {
 		}
 	}
 	return builder.String()
-}
-
-func humanBytes(size int64) string {
-	const unit = 1024
-	if size < unit {
-		return strconv.FormatInt(size, 10) + "B"
-	}
-	value, suffix := float64(size), ""
-	for _, next := range []string{"K", "M", "G", "T", "P"} {
-		value /= unit
-		suffix = next
-		if value < unit {
-			break
-		}
-	}
-	return strconv.FormatFloat(value, 'f', 1, 64) + suffix
 }

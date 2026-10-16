@@ -204,7 +204,7 @@ func (t *transfer) finish(verb, target string, err error) error {
 	if files == 1 {
 		noun = "file"
 	}
-	fmt.Fprintf(t.stderr, "metorial: %s %d %s (%s) to %s\n", verb, files, noun, humanBytes(bytes), target)
+	fmt.Fprintf(t.stderr, "metorial: %s %d %s (%s) to %s\n", verb, files, noun, commandutil.HumanBytes(bytes), target)
 	return nil
 }
 
@@ -539,9 +539,9 @@ func (p *progress) render(force bool) {
 	}
 	p.rendered = time.Now()
 
-	line := humanBytes(p.done)
+	line := commandutil.HumanBytes(p.done)
 	if p.total > 0 {
-		line += fmt.Sprintf(" / %s (%d%%)", humanBytes(p.total), p.done*100/p.total)
+		line += fmt.Sprintf(" / %s (%d%%)", commandutil.HumanBytes(p.total), p.done*100/p.total)
 	}
 	if p.files > 1 {
 		line = fmt.Sprintf("%d/%d files  %s", p.filesDone, p.files, line)
