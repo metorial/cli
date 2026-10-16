@@ -25,7 +25,7 @@ func newConsumerRoot(application *app.App) (*cobra.Command, error) {
 
 	command.AddCommand(systemcmd.NewVersionCommand())
 	command.AddCommand(systemcmd.NewFeedbackCommand())
-	command.AddCommand(integrationscmd.NewCommand(ctx))
+	command.AddCommand(integrationscmd.NewCommands(ctx)...)
 
 	if !commandutil.BrowserShellEnabled() {
 		command.AddCommand(systemcmd.NewUpgradeCommand(application))
@@ -38,8 +38,5 @@ func newConsumerRoot(application *app.App) (*cobra.Command, error) {
 		command.AddCommand(settingscmd.NewCommand(ctx))
 		command.AddCommand(completioncmd.NewCommand(command.OutOrStdout()))
 	}
-
-	addMovedCommands(command)
-
 	return command, nil
 }

@@ -59,14 +59,14 @@ Sign in, then work with integrations and MCP tools:
 
 ```bash
 metorial login
-metorial integrations list
-metorial integrations catalog list
-metorial integrations tools <integration-id>
-metorial integrations call <integration-id> <tool> -d '{"query":"..."}'
+metorial list
+metorial catalog list
+metorial tools <integration-id>
+metorial call <integration-id> <tool> -d '{"query":"..."}'
 metorial open
 ```
 
-Resource administration, `fetch`/`curl`, and `example` moved to `metorial-admin`.
+Resource administration, `fetch`/`curl`, and `example` live in `metorial-admin`.
 
 ## Admin CLI (`metorial-admin`)
 

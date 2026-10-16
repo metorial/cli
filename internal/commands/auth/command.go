@@ -106,7 +106,7 @@ func NewProfileCommand(ctx commandutil.Context) *cobra.Command {
 			profiles := store.SortedProfiles()
 			if len(profiles) == 0 {
 				_, _ = fmt.Fprintln(command.OutOrStdout(), "No saved profiles.")
-				_, _ = fmt.Fprintln(command.OutOrStdout(), "Run \"metorial login\" or \"metorial profile add\" to create one.")
+				_, _ = fmt.Fprintf(command.OutOrStdout(), "Run \"%s login\" or \"%s add\" to create one.\n", command.Root().Name(), command.Parent().CommandPath())
 				return nil
 			}
 
@@ -156,7 +156,7 @@ func NewProfileCommand(ctx commandutil.Context) *cobra.Command {
 			}
 
 			_, _ = fmt.Fprintln(command.OutOrStdout())
-			_, _ = fmt.Fprintf(command.OutOrStdout(), "%s `metorial profile set %s`\n", colors.Notice("Switch to a different profile with"), profiles[0].Name)
+			_, _ = fmt.Fprintf(command.OutOrStdout(), "%s `%s set %s`\n", colors.Notice("Switch to a different profile with"), command.Parent().CommandPath(), profiles[0].Name)
 			return nil
 		},
 	})
@@ -188,7 +188,7 @@ func NewProfileCommand(ctx commandutil.Context) *cobra.Command {
 				_, _ = fmt.Fprintf(command.OutOrStdout(), "Expires: %s\n", profile.ExpiresAt.Local().Format("2006-01-02 15:04"))
 			}
 			_, _ = fmt.Fprintln(command.OutOrStdout())
-			_, _ = fmt.Fprintf(command.OutOrStdout(), "Switch to this profile with `metorial profile set %s`.\n", profile.Name)
+			_, _ = fmt.Fprintf(command.OutOrStdout(), "Switch to this profile with `%s set %s`.\n", command.Parent().CommandPath(), profile.Name)
 			return nil
 		},
 	})
@@ -217,7 +217,7 @@ func NewProfileCommand(ctx commandutil.Context) *cobra.Command {
 			_, _ = fmt.Fprintln(command.OutOrStdout())
 			_, _ = fmt.Fprintf(command.OutOrStdout(), "%s %s\n", colors.Notice("Active profile:"), colors.Bold(profile.Name))
 			_, _ = fmt.Fprintln(command.OutOrStdout())
-			_, _ = fmt.Fprintln(command.OutOrStdout(), colors.Muted("See what you can do next with `metorial --help`."))
+			_, _ = fmt.Fprintln(command.OutOrStdout(), colors.Muted(fmt.Sprintf("See what you can do next with `%s --help`.", command.Root().Name())))
 			return nil
 		},
 	})

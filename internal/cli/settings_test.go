@@ -8,7 +8,7 @@ import (
 	"github.com/metorial/cli/internal/app"
 )
 
-func TestNewRootCommandUsesSavedDefaultFormat(t *testing.T) {
+func TestNewConsumerRootCommandUsesSavedDefaultFormat(t *testing.T) {
 	homeDir := t.TempDir()
 	t.Setenv("HOME", homeDir)
 
@@ -20,12 +20,12 @@ func TestNewRootCommandUsesSavedDefaultFormat(t *testing.T) {
 		t.Fatalf("settings set default-format error = %v", err)
 	}
 
-	command, err := newRootCommand(&app.App{
+	command, err := NewConsumerRootCommand(&app.App{
 		Stdout: &bytes.Buffer{},
 		Stderr: &bytes.Buffer{},
 	})
 	if err != nil {
-		t.Fatalf("newRootCommand() error = %v", err)
+		t.Fatalf("NewConsumerRootCommand() error = %v", err)
 	}
 
 	flag := command.PersistentFlags().Lookup("format")

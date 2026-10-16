@@ -48,12 +48,12 @@ func TestProfileSetAcceptsName(t *testing.T) {
 	}
 
 	stdout := &bytes.Buffer{}
-	command, err := newRootCommand(&app.App{
+	command, err := NewConsumerRootCommand(&app.App{
 		Stdout: stdout,
 		Stderr: &bytes.Buffer{},
 	})
 	if err != nil {
-		t.Fatalf("newRootCommand() error = %v", err)
+		t.Fatalf("NewConsumerRootCommand() error = %v", err)
 	}
 
 	command.SetOut(stdout)
@@ -112,12 +112,12 @@ func TestProfileListIncludesFriendlyHelp(t *testing.T) {
 	}
 
 	stdout := &bytes.Buffer{}
-	command, err := newRootCommand(&app.App{
+	command, err := NewConsumerRootCommand(&app.App{
 		Stdout: stdout,
 		Stderr: &bytes.Buffer{},
 	})
 	if err != nil {
-		t.Fatalf("newRootCommand() error = %v", err)
+		t.Fatalf("NewConsumerRootCommand() error = %v", err)
 	}
 
 	command.SetOut(stdout)
@@ -163,12 +163,12 @@ func TestProfileGetIncludesSwitchExample(t *testing.T) {
 	}
 
 	stdout := &bytes.Buffer{}
-	command, err := newRootCommand(&app.App{
+	command, err := NewConsumerRootCommand(&app.App{
 		Stdout: stdout,
 		Stderr: &bytes.Buffer{},
 	})
 	if err != nil {
-		t.Fatalf("newRootCommand() error = %v", err)
+		t.Fatalf("NewConsumerRootCommand() error = %v", err)
 	}
 
 	command.SetOut(stdout)

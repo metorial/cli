@@ -57,7 +57,7 @@ func runCommand(this js.Value, args []js.Value) any {
 			}
 
 			restoreEnv := applyEnv(envValues)
-			exitCode := cli.RunArgs(app.NewWithIO(bytes.NewReader(nil), stdout, stderr, features, features), commandArgs)
+			exitCode := cli.RunConsumerArgs(app.NewWithIO(bytes.NewReader(nil), stdout, stderr, features, features), commandArgs)
 			restoreEnv()
 
 			resolve.Invoke(js.ValueOf(map[string]any{
@@ -103,7 +103,7 @@ func completeCommands(this js.Value, args []js.Value) any {
 			}
 
 			restoreEnv := applyEnv(envValues)
-			command, err := cli.NewRootCommand(app.NewWithIO(bytes.NewReader(nil), stdout, stderr, features, features))
+			command, err := cli.NewConsumerRootCommand(app.NewWithIO(bytes.NewReader(nil), stdout, stderr, features, features))
 			restoreEnv()
 
 			if err != nil {

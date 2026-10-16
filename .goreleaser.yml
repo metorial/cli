@@ -17,7 +17,7 @@ before:
     - go test ./...
 
 builds:
-  - id: metorial
+  - id: consumer
     main: ./cmd/metorial
     binary: metorial
     env:
@@ -35,7 +35,7 @@ builds:
       - amd64
       - arm64
 
-  - id: metorial-admin
+  - id: admin
     main: ./cmd/metorial-admin
     binary: metorial-admin
     env:
@@ -54,9 +54,9 @@ builds:
       - arm64
 
 archives:
-  - id: metorial
+  - id: consumer
     builds:
-      - metorial
+      - consumer
     name_template: 'metorial_{{ .Version }}_{{ .Os }}_{{ .Arch }}'
     formats:
       - tar.gz
@@ -65,9 +65,9 @@ archives:
         formats:
           - zip
 
-  - id: metorial-admin
+  - id: admin
     builds:
-      - metorial-admin
+      - admin
     name_template: 'metorial-admin_{{ .Version }}_{{ .Os }}_{{ .Arch }}'
     formats:
       - tar.gz
@@ -82,7 +82,7 @@ checksum:
 brews:
   - name: metorial
     ids:
-      - metorial
+      - consumer
     repository:
       owner: metorial
       name: homebrew-tap
@@ -104,7 +104,7 @@ brews:
 
   - name: metorial-admin
     ids:
-      - metorial-admin
+      - admin
     repository:
       owner: metorial
       name: homebrew-tap
@@ -127,7 +127,7 @@ brews:
 scoops:
   - name: metorial
     ids:
-      - metorial
+      - consumer
     repository:
       owner: metorial
       name: scoop-bucket
@@ -144,7 +144,7 @@ scoops:
 
   - name: metorial-admin
     ids:
-      - metorial-admin
+      - admin
     repository:
       owner: metorial
       name: scoop-bucket

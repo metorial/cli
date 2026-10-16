@@ -46,8 +46,8 @@ scoop install metorial-admin
 
 ```bash
 metorial login
-metorial integrations list
-metorial integrations catalog list
+metorial list
+metorial catalog list
 ```
 
 Admin resources:

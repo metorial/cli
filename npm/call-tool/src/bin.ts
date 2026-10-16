@@ -14,16 +14,16 @@ let ROOT_VALUE_FLAGS = new Set([
 let ROOT_BOOLEAN_FLAGS = new Set(['--help', '-h', '--version', '-v']);
 
 let OUTPUT_REPLACEMENTS: Array<[string, string]> = [
-  ['metorial integrations catalog search', `${BINARY_NAME} search`],
-  ['metorial integrations catalog list', `${BINARY_NAME} search`],
-  ['metorial integrations search', `${BINARY_NAME} search`],
-  ['metorial integrations setup', `${BINARY_NAME} setup`],
-  ['metorial integrations schema', `${BINARY_NAME} schema`],
-  ['metorial integrations tools', `${BINARY_NAME} info`],
-  ['metorial integrations get', `${BINARY_NAME} info`],
-  ['metorial integrations client', `${BINARY_NAME} client`],
-  ['metorial integrations install', `${BINARY_NAME} install`],
-  ['metorial integrations call', BINARY_NAME]
+  ['metorial catalog search', `${BINARY_NAME} search`],
+  ['metorial catalog list', `${BINARY_NAME} search`],
+  ['metorial search', `${BINARY_NAME} search`],
+  ['metorial setup', `${BINARY_NAME} setup`],
+  ['metorial schema', `${BINARY_NAME} schema`],
+  ['metorial tools', `${BINARY_NAME} info`],
+  ['metorial get', `${BINARY_NAME} info`],
+  ['metorial client', `${BINARY_NAME} client`],
+  ['metorial install', `${BINARY_NAME} install`],
+  ['metorial call', BINARY_NAME]
 ];
 
 let ROOT_HELP = `Call Tool by Metorial
@@ -65,7 +65,7 @@ Examples:
   ${BINARY_NAME} install codex my-integration
 
 The default command is \`call\`, so \`${BINARY_NAME} my-integration my-tool\`
-maps to \`metorial integrations call my-integration my-tool\`.
+maps to \`metorial call my-integration my-tool\`.
 
 Use "${BINARY_NAME} <command> --help" for more details.
 `;
@@ -203,21 +203,21 @@ function routeHelpCommand(args: string[]) {
 
   switch (command) {
     case 'setup':
-      return ['integrations', 'setup'];
+      return ['setup'];
     case 'search':
-      return ['integrations', 'search'];
+      return ['search'];
     case 'schema':
-      return ['integrations', 'schema'];
+      return ['schema'];
     case 'info':
     case 'tools':
-      return ['integrations', 'tools'];
+      return ['tools'];
     case 'client':
-      return ['integrations', 'client'];
+      return ['client'];
     case 'install':
-      return ['integrations', 'install'];
+      return ['install'];
     case 'call':
     default:
-      return ['integrations', 'call'];
+      return ['call'];
   }
 }
 
@@ -225,23 +225,18 @@ function routeCommand(args: string[]) {
   let [command, ...rest] = args;
 
   switch (command) {
-    case 'setup':
-      return ['integrations', 'setup', ...rest];
-    case 'search':
-      return ['integrations', 'search', ...rest];
-    case 'schema':
-      return ['integrations', 'schema', ...rest];
     case 'info':
+      return ['tools', ...rest];
+    case 'setup':
+    case 'search':
+    case 'schema':
     case 'tools':
-      return ['integrations', 'tools', ...rest];
     case 'client':
-      return ['integrations', 'client', ...rest];
     case 'install':
-      return ['integrations', 'install', ...rest];
     case 'call':
-      return ['integrations', 'call', ...rest];
+      return args;
     default:
-      return ['integrations', 'call', ...args];
+      return ['call', ...args];
   }
 }
 

@@ -1,9 +1,9 @@
-CLI_NAME := metorial
+CONSUMER_NAME := metorial
 ADMIN_NAME := metorial-admin
 BIN_DIR := bin
-BIN := $(BIN_DIR)/$(CLI_NAME)
+CONSUMER_BIN := $(BIN_DIR)/$(CONSUMER_NAME)
 ADMIN_BIN := $(BIN_DIR)/$(ADMIN_NAME)
-PKG := ./cmd/metorial
+CONSUMER_PKG := ./cmd/metorial
 ADMIN_PKG := ./cmd/metorial-admin
 
 .PHONY: help build run fmt test tidy check install clean completion-bash completion-zsh completion-fish completion-powershell generate release snapshot public
@@ -30,11 +30,11 @@ help:
 
 build:
 	mkdir -p $(BIN_DIR)
-	go build -o $(BIN) $(PKG)
+	go build -o $(CONSUMER_BIN) $(CONSUMER_PKG)
 	go build -o $(ADMIN_BIN) $(ADMIN_PKG)
 
 run:
-	go run $(PKG)
+	go run $(CONSUMER_PKG)
 
 generate:
 	cd generator && bun run generate $${API_URL:-http://metorial-root.localhost:4310}
@@ -51,23 +51,23 @@ tidy:
 check: fmt tidy test
 
 install:
-	go install $(PKG)
+	go install $(CONSUMER_PKG)
 	go install $(ADMIN_PKG)
 
 clean:
 	rm -rf $(BIN_DIR)
 
 completion-bash:
-	go run $(PKG) completion bash
+	go run $(CONSUMER_PKG) completion bash
 
 completion-zsh:
-	go run $(PKG) completion zsh
+	go run $(CONSUMER_PKG) completion zsh
 
 completion-fish:
-	go run $(PKG) completion fish
+	go run $(CONSUMER_PKG) completion fish
 
 completion-powershell:
-	go run $(PKG) completion powershell
+	go run $(CONSUMER_PKG) completion powershell
 
 public:
 	bun ./scripts/build-public.ts

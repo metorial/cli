@@ -28,12 +28,12 @@ type rootDefinition struct {
 	long  string
 }
 
-func Run() int {
+func RunConsumer() int {
 	application := app.New()
-	return RunArgs(application, nil)
+	return RunConsumerArgs(application, nil)
 }
 
-func RunArgs(application *app.App, args []string) int {
+func RunConsumerArgs(application *app.App, args []string) int {
 	return runRoot(application, args, newConsumerRoot)
 }
 
@@ -46,16 +46,12 @@ func RunAdminArgs(application *app.App, args []string) int {
 	return runRoot(application, args, newAdminRoot)
 }
 
-func NewRootCommand(application *app.App) (*cobra.Command, error) {
+func NewConsumerRootCommand(application *app.App) (*cobra.Command, error) {
 	return newConsumerRoot(application)
 }
 
 func NewAdminRootCommand(application *app.App) (*cobra.Command, error) {
 	return newAdminRoot(application)
-}
-
-func newRootCommand(application *app.App) (*cobra.Command, error) {
-	return NewRootCommand(application)
 }
 
 func runRoot(
@@ -78,9 +74,6 @@ func runRoot(
 			return code
 		}
 		renderCLIError(application, err)
-		if isMovedError(err) {
-			return 2
-		}
 		return 1
 	}
 
@@ -173,18 +166,6 @@ func resolveDefaultOutputFormat(raw string) (string, error) {
 }
 
 func renderCLIError(application *app.App, err error) {
-	if moved, ok := asMovedError(err); ok {
-		features := application.StderrFeatures()
-		colors := terminal.NewColorizer(features)
-		_, _ = fmt.Fprintln(application.Stderr, colors.Warning("Command Moved"))
-		_, _ = fmt.Fprintln(application.Stderr)
-		_, _ = fmt.Fprintln(application.Stderr, colors.Muted(moved.Error()))
-		_, _ = fmt.Fprintln(application.Stderr)
-		_, _ = fmt.Fprintln(application.Stderr, colors.Notice("Next step"))
-		_, _ = fmt.Fprintln(application.Stderr, colors.Muted(fmt.Sprintf("Install and run `metorial-admin %s` instead.", moved.Command)))
-		return
-	}
-
 	message := strings.TrimSpace(err.Error())
 	if message == "" {
 		return

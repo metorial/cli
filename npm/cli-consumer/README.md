@@ -7,8 +7,8 @@ Use it to discover integrations and call MCP tools from your terminal.
 ```bash
 npm install -g @metorial/cli
 metorial login
-metorial integrations list
-metorial integrations catalog list
+metorial list
+metorial catalog list
 metorial open
 ```
 

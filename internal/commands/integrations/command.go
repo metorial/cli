@@ -97,14 +97,6 @@ func writeValue(writer io.Writer, features terminal.Features, formatInput string
 	return commandutil.WriteValue(writer, features, formatInput, value)
 }
 
-func helpTemplate() string {
-	return commandutil.HelpTemplate()
-}
-
-func usageTemplate() string {
-	return commandutil.UsageTemplate()
-}
-
 const commandCategoryIntegrations = commandutil.CommandCategoryIntegrations
 
 func optionalArg(args []string, index int) string {
@@ -118,18 +110,14 @@ func firstNonEmpty(values ...string) string {
 	return commandutil.FirstNonEmpty(values...)
 }
 
-func NewCommand(ctx commandutil.Context) *cobra.Command {
-	return newIntegrationsCommand(ctx.App, newRootOptionsView(ctx.Options))
+func NewCommands(ctx commandutil.Context) []*cobra.Command {
+	return newIntegrationCommands(ctx.App, newRootOptionsView(ctx.Options))
 }
 
-func newIntegrationsCommand(application *app.App, rootOptions *rootOptionsView) *cobra.Command {
+func newIntegrationCommands(application *app.App, rootOptions *rootOptionsView) []*cobra.Command {
 	browserShell := commandutil.BrowserShellEnabled()
 
-	command := &cobra.Command{
-		Use:     "integrations",
-		Aliases: []string{"integration"},
-		Short:   "Browse and set up your integrations",
-	}
+	commands := []*cobra.Command{}
 
 	integrationListPagination := paginationOptions{Limit: 15}
 	catalogPagination := paginationOptions{Limit: 15}
@@ -180,14 +168,14 @@ func newIntegrationsCommand(application *app.App, rootOptions *rootOptionsView) 
 			tips := []string{}
 			if len(result.Items) > 0 {
 				identifier := integrationListIdentifier(result.Items[0])
-				tips = append(tips, fmt.Sprintf("metorial integrations get %s", identifier))
-				tips = append(tips, fmt.Sprintf("metorial integrations tools %s", identifier))
+				tips = append(tips, fmt.Sprintf("metorial get %s", identifier))
+				tips = append(tips, fmt.Sprintf("metorial tools %s", identifier))
 				if !browserShell {
-					tips = append(tips, fmt.Sprintf("metorial integrations install codex %s", identifier))
+					tips = append(tips, fmt.Sprintf("metorial install codex %s", identifier))
 				}
 			}
 			tips = append(tips, paginationTipsForIntegrationList(args, integrationListPagination, result.Items, result.Pagination)...)
-			tips = append(tips, "metorial integrations catalog list")
+			tips = append(tips, "metorial catalog list")
 
 			format, err := output.ParseFormat(rootOptions.format)
 			if err != nil {
@@ -213,9 +201,9 @@ func newIntegrationsCommand(application *app.App, rootOptions *rootOptionsView) 
 		},
 	}
 	addPaginationFlags(listCommand, &integrationListPagination, "integrations")
-	command.AddCommand(listCommand)
+	commands = append(commands, listCommand)
 
-	command.AddCommand(&cobra.Command{
+	commands = append(commands, &cobra.Command{
 		Use:   "get <integration-id>",
 		Short: "View an integration's details and tools",
 		Args:  cobra.ExactArgs(1),
@@ -240,12 +228,12 @@ func newIntegrationsCommand(application *app.App, rootOptions *rootOptionsView) 
 			}
 
 			tips := []string{
-				fmt.Sprintf("metorial integrations tools %s", integrationGetIdentifier(server)),
+				fmt.Sprintf("metorial tools %s", integrationGetIdentifier(server)),
 			}
 			if !browserShell {
 				tips = append(tips,
-					fmt.Sprintf("metorial integrations install codex %s", integrationGetIdentifier(server)),
-					fmt.Sprintf("metorial integrations install custom %s", integrationGetIdentifier(server)),
+					fmt.Sprintf("metorial install codex %s", integrationGetIdentifier(server)),
+					fmt.Sprintf("metorial install custom %s", integrationGetIdentifier(server)),
 				)
 			}
 
@@ -265,7 +253,7 @@ func newIntegrationsCommand(application *app.App, rootOptions *rootOptionsView) 
 		},
 	})
 
-	command.AddCommand(&cobra.Command{
+	commands = append(commands, &cobra.Command{
 		Use:   "setup [provider-listing-slug-or-id]",
 		Short: "Configure a new integration from the Metorial catalog",
 		Args:  cobra.RangeArgs(0, 1),
@@ -371,17 +359,17 @@ func newIntegrationsCommand(application *app.App, rootOptions *rootOptionsView) 
 			}
 
 			tips := []string{
-				fmt.Sprintf("metorial integrations get %s", integrationCreateIdentifier(server)),
-				fmt.Sprintf("metorial integrations tools %s", integrationCreateIdentifier(server)),
+				fmt.Sprintf("metorial get %s", integrationCreateIdentifier(server)),
+				fmt.Sprintf("metorial tools %s", integrationCreateIdentifier(server)),
 			}
 			if !browserShell {
 				tips = append(tips,
-					fmt.Sprintf("metorial integrations install codex %s", integrationCreateIdentifier(server)),
-					fmt.Sprintf("metorial integrations install custom %s", integrationCreateIdentifier(server)),
+					fmt.Sprintf("metorial install codex %s", integrationCreateIdentifier(server)),
+					fmt.Sprintf("metorial install custom %s", integrationCreateIdentifier(server)),
 				)
 			}
 			if finalListing != nil {
-				tips = append(tips, fmt.Sprintf("metorial integrations catalog get %s", finalListing.Slug))
+				tips = append(tips, fmt.Sprintf("metorial catalog get %s", finalListing.Slug))
 			}
 
 			if format != output.FormatStructured {
@@ -440,8 +428,8 @@ func newIntegrationsCommand(application *app.App, rootOptions *rootOptionsView) 
 
 		tips := []string{}
 		if len(result.Items) > 0 {
-			tips = append(tips, fmt.Sprintf("metorial integrations catalog get %s", result.Items[0].Slug))
-			tips = append(tips, fmt.Sprintf("metorial integrations setup %s", result.Items[0].Slug))
+			tips = append(tips, fmt.Sprintf("metorial catalog get %s", result.Items[0].Slug))
+			tips = append(tips, fmt.Sprintf("metorial setup %s", result.Items[0].Slug))
 		}
 		tips = append(tips, paginationTipsForCatalogList(command, args, catalogPagination, result.Items, result.Pagination)...)
 
@@ -504,7 +492,7 @@ func newIntegrationsCommand(application *app.App, rootOptions *rootOptionsView) 
 			}
 
 			tips := []string{
-				fmt.Sprintf("metorial integrations setup %s", listing.Slug),
+				fmt.Sprintf("metorial setup %s", listing.Slug),
 			}
 
 			format, err := output.ParseFormat(rootOptions.format)
@@ -524,7 +512,7 @@ func newIntegrationsCommand(application *app.App, rootOptions *rootOptionsView) 
 		},
 	})
 
-	command.AddCommand(catalogCommand)
+	commands = append(commands, catalogCommand)
 	searchCommand := &cobra.Command{
 		Use:   "search [search]",
 		Short: "Search provider listings in the integration catalog",
@@ -532,7 +520,7 @@ func newIntegrationsCommand(application *app.App, rootOptions *rootOptionsView) 
 		RunE:  runCatalogList,
 	}
 	addPaginationFlags(searchCommand, &catalogPagination, "provider listings")
-	command.AddCommand(searchCommand)
+	commands = append(commands, searchCommand)
 
 	if !browserShell {
 		clientCommand := &cobra.Command{
@@ -545,8 +533,8 @@ func newIntegrationsCommand(application *app.App, rootOptions *rootOptionsView) 
 			RunE: func(command *cobra.Command, args []string) error {
 				rows := integrationClientRows()
 				tips := []string{
-					"metorial integrations install codex <integration-id>",
-					"metorial integrations install custom <integration-id>",
+					"metorial install codex <integration-id>",
+					"metorial install custom <integration-id>",
 				}
 
 				format, err := output.ParseFormat(rootOptions.format)
@@ -563,7 +551,7 @@ func newIntegrationsCommand(application *app.App, rootOptions *rootOptionsView) 
 				return renderIntegrationClientList(command.OutOrStdout(), application.StdoutFeatures(), rows, tips)
 			},
 		})
-		command.AddCommand(clientCommand)
+		commands = append(commands, clientCommand)
 	}
 
 	installCommand := &cobra.Command{
@@ -596,7 +584,7 @@ func newIntegrationsCommand(application *app.App, rootOptions *rootOptionsView) 
 			}
 			detection := adapter.detect()
 			if !detection.Usable {
-				return fmt.Errorf("metorial: %s is not installed or cannot be used on this system. Run `metorial integrations client list` for supported clients", adapter.label())
+				return fmt.Errorf("metorial: %s is not installed or cannot be used on this system. Run `metorial client list` for supported clients", adapter.label())
 			}
 
 			token, err := createMagicMcpInstallToken(consumerSDK, server.Id)
@@ -700,10 +688,10 @@ func newIntegrationsCommand(application *app.App, rootOptions *rootOptionsView) 
 		},
 	})
 	if !browserShell {
-		command.AddCommand(installCommand)
+		commands = append(commands, installCommand)
 	}
 
-	command.AddCommand(&cobra.Command{
+	commands = append(commands, &cobra.Command{
 		Use:   "tools <integration-id>",
 		Short: "View provider details and tools for an integration",
 		Args:  cobra.ExactArgs(1),
@@ -787,17 +775,17 @@ func newIntegrationsCommand(application *app.App, rootOptions *rootOptionsView) 
 			tips := []string{}
 			for _, providerWithTools := range providersWithTools {
 				if providerWithTools.Listing != nil {
-					tips = append(tips, fmt.Sprintf("metorial integrations catalog get %s", providerWithTools.Listing.Slug))
+					tips = append(tips, fmt.Sprintf("metorial catalog get %s", providerWithTools.Listing.Slug))
 					break
 				}
 			}
 			if len(liveTools) > 0 {
 				identifier := integrationGetIdentifier(server)
 				toolKey := liveTools[0].Name
-				tips = append(tips, fmt.Sprintf("metorial integrations install codex %s", identifier))
-				tips = append(tips, fmt.Sprintf("metorial integrations install custom %s", identifier))
-				tips = append(tips, fmt.Sprintf("metorial integrations schema %s %s", identifier, toolKey))
-				tips = append(tips, fmt.Sprintf("metorial integrations call %s %s --data '{}'", identifier, toolKey))
+				tips = append(tips, fmt.Sprintf("metorial install codex %s", identifier))
+				tips = append(tips, fmt.Sprintf("metorial install custom %s", identifier))
+				tips = append(tips, fmt.Sprintf("metorial schema %s %s", identifier, toolKey))
+				tips = append(tips, fmt.Sprintf("metorial call %s %s --data '{}'", identifier, toolKey))
 			}
 
 			format, err := output.ParseFormat(rootOptions.format)
@@ -818,7 +806,7 @@ func newIntegrationsCommand(application *app.App, rootOptions *rootOptionsView) 
 		},
 	})
 
-	command.AddCommand(&cobra.Command{
+	commands = append(commands, &cobra.Command{
 		Use:   "schema <integration-id> <tool-key>",
 		Short: "View the input schema for an integration tool",
 		Args:  cobra.ExactArgs(2),
@@ -895,26 +883,13 @@ func newIntegrationsCommand(application *app.App, rootOptions *rootOptionsView) 
 		},
 	}
 	callCommand.Flags().StringVarP(&callOptions.Data, "data", "d", "", "JSON tool input, or @- to read from stdin")
-	command.AddCommand(callCommand)
+	commands = append(commands, callCommand)
 
-	command.SetHelpTemplate(helpTemplate())
-	command.SetUsageTemplate(usageTemplate())
-	command.Annotations = map[string]string{
-		"metorial:command-category": commandCategoryIntegrations,
-		"metorial:help-summary": strings.Join([]string{
-			"search [search]               Shortcut for catalog search",
-			"setup [listing]               Create and finish an integration setup session",
-			"install <client> <id>         Install an integration into a local client",
-			"client list                   List supported local MCP clients",
-			"schema <integration> <tool>   Show the MCP input schema for a tool",
-			"call <integration> <tool>     Validate input and call a tool over MCP",
-			"catalog list [search]         Browse installable provider listings",
-			"catalog get <listing>         Show listing details, readme, and tools",
-			"tools <integration-id>   Show providers and tools for an integration",
-		}, "\n"),
+	for _, command := range commands {
+		commandutil.SetCommandCategory(command, commandCategoryIntegrations)
 	}
 
-	return command
+	return commands
 }
 
 func getCLIMemberConsumer(runtime config.Runtime) (*consumers.ConsumersGetMemberConsumerOutput, error) {
@@ -1876,7 +1851,7 @@ func paginationTipsForIntegrationList(args []string, options paginationOptions, 
 
 	var tips []string
 	search := strings.TrimSpace(optionalArg(args, 0))
-	base := "metorial integrations list"
+	base := "metorial list"
 	if search != "" {
 		base += " " + shellQuote(search)
 	}
@@ -1898,7 +1873,7 @@ func paginationTipsForCatalogList(command *cobra.Command, args []string, options
 
 	var tips []string
 	search := strings.TrimSpace(optionalArg(args, 0))
-	base := "metorial integrations"
+	base := "metorial"
 	if command != nil && command.Parent() != nil && command.Parent().Name() == "catalog" {
 		base += " catalog"
 	}
