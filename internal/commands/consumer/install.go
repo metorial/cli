@@ -1,4 +1,4 @@
-package integrations
+package consumer
 
 import (
 	"bytes"
@@ -13,13 +13,11 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/metorial/cli/internal/consumerapi"
 	"github.com/metorial/cli/internal/output"
 	"github.com/metorial/cli/internal/terminal"
-	metorial "github.com/metorial/metorial-go/v1"
-	"github.com/metorial/metorial-go/v1/endpoints"
-	"github.com/metorial/metorial-go/v1/resources/magicmcpservers"
-	"github.com/metorial/metorial-go/v1/resources/magicmcptokens"
 	"github.com/pelletier/go-toml/v2"
+	"github.com/spf13/cobra"
 	"github.com/tailscale/hujson"
 	"gopkg.in/yaml.v3"
 )
@@ -235,6 +233,135 @@ type integrationInstallResult struct {
 	File        *fileInstallPlan    `json:"file,omitempty"`
 }
 
+func newInstallCommands(env commandEnv) []*cobra.Command {
+	clientCommand := &cobra.Command{
+		Use:   "client",
+		Short: "Inspect supported local MCP clients",
+	}
+	clientCommand.AddCommand(&cobra.Command{
+		Use:   "list",
+		Short: "List supported MCP clients and installation availability",
+		Args:  cobra.NoArgs,
+		RunE: func(command *cobra.Command, args []string) error {
+			rows := integrationClientRows()
+			tips := []string{
+				"metorial install codex <integration-id>",
+				"metorial install custom <integration-id>",
+			}
+
+			return env.write(command, map[string]any{
+				"items": rows,
+				"tips":  tips,
+			}, func(writer io.Writer, features terminal.Features) error {
+				return renderIntegrationClientList(writer, features, rows, tips)
+			})
+		},
+	})
+
+	installCommand := &cobra.Command{
+		Use:   "install <client-identifier> <integration-id>",
+		Short: "Install an integration into a local MCP client",
+		Args:  cobra.ExactArgs(2),
+		RunE: func(command *cobra.Command, args []string) error {
+			adapter, err := integrationClientByID(args[0])
+			if err != nil {
+				return err
+			}
+			detection := adapter.detect()
+			if !detection.Usable {
+				return fmt.Errorf("metorial: %s is not installed or cannot be used on this system. Run `metorial client list` for supported clients", adapter.label())
+			}
+
+			server, token, endpointURL, err := createInstallEndpoint(env, args[1])
+			if err != nil {
+				return err
+			}
+
+			plan, err := adapter.buildInstallPlan(remoteServerDefinition{
+				Name:      integrationIdentifier(server),
+				URL:       endpointURL,
+				Transport: selectInstallTransport(adapter.capabilities()),
+			})
+			if err != nil {
+				return err
+			}
+			if err := executeIntegrationInstallPlan(plan); err != nil {
+				return err
+			}
+
+			result := integrationInstallResult{
+				Client:      adapter.label(),
+				Method:      string(plan.method()),
+				Transport:   string(plan.transport()),
+				Integration: integrationIdentifier(server),
+				EndpointURL: endpointURL,
+				TokenID:     token.ID,
+			}
+			switch typed := plan.(type) {
+			case commandInstallPlan:
+				result.Command = &typed
+			case fileInstallPlan:
+				result.File = &typed
+			}
+
+			return env.write(command, result, func(writer io.Writer, features terminal.Features) error {
+				return renderIntegrationInstallResult(writer, features, result)
+			})
+		},
+	}
+	installCommand.AddCommand(&cobra.Command{
+		Use:   "custom <integration-id>",
+		Short: "Create an installation token and show the endpoint details",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(command *cobra.Command, args []string) error {
+			server, token, endpointURL, err := createInstallEndpoint(env, args[0])
+			if err != nil {
+				return err
+			}
+
+			result := integrationInstallResult{
+				Client:      "custom",
+				Method:      "custom",
+				Transport:   string(installTransportStreamableHTTP),
+				Integration: integrationIdentifier(server),
+				EndpointURL: endpointURL,
+				TokenID:     token.ID,
+				Token:       token.Secret,
+			}
+
+			return env.write(command, result, func(writer io.Writer, features terminal.Features) error {
+				return renderCustomInstallResult(writer, features, result)
+			})
+		},
+	})
+
+	return []*cobra.Command{clientCommand, installCommand}
+}
+
+func createInstallEndpoint(env commandEnv, integrationID string) (*consumerapi.MagicMcpServer, *consumerapi.MagicMcpToken, string, error) {
+	client, err := env.client()
+	if err != nil {
+		return nil, nil, "", err
+	}
+
+	server, err := client.GetMagicMcpServer(integrationID)
+	if err != nil {
+		return nil, nil, "", err
+	}
+
+	token, err := createMagicMcpInstallToken(client, server.ID)
+	if err != nil {
+		return nil, nil, "", err
+	}
+
+	endpointURL, err := buildMagicMcpInstallURL(server, token.Secret)
+	if err != nil {
+		return nil, nil, "", err
+	}
+
+	return server, token, endpointURL, nil
+}
+
 var integrationClientAdapters = map[string]clientAdapter{}
 
 func init() {
@@ -448,21 +575,20 @@ func selectInstallTransport(capabilities clientCapabilities) installTransport {
 	return installTransportStreamableHTTP
 }
 
-func createMagicMcpInstallToken(sdk *metorial.MetorialSdk, magicMcpServerID string) (*magicmcptokens.MagicMcpTokensCreateOutput, error) {
-	name := "Metorial CLI"
-	return sdk.MagicMcpTokens.Create(&endpoints.MagicMcpTokensEndpointCreateBody{
-		Name:             name,
-		MagicMcpServerId: &magicMcpServerID,
+func createMagicMcpInstallToken(client *consumerapi.Client, magicMcpServerID string) (*consumerapi.MagicMcpToken, error) {
+	return client.CreateMagicMcpToken(consumerapi.CreateMagicMcpTokenInput{
+		Name:             "Metorial CLI",
+		MagicMcpServerID: &magicMcpServerID,
 	})
 }
 
-func buildMagicMcpInstallURL(server *magicmcpservers.MagicMcpServersGetOutput, tokenSecret string) (string, error) {
+func buildMagicMcpInstallURL(server *consumerapi.MagicMcpServer, tokenSecret string) (string, error) {
 	if server == nil {
 		return "", fmt.Errorf("metorial: integration is required")
 	}
-	endpointURL := primaryServerURLFromGet(server.Endpoints)
+	endpointURL := primaryServerURL(server)
 	if strings.TrimSpace(endpointURL) == "" {
-		return "", fmt.Errorf("metorial: integration %s has no MCP endpoint", integrationGetIdentifier(server))
+		return "", fmt.Errorf("metorial: integration %s has no MCP endpoint", integrationIdentifier(server))
 	}
 	parsed, err := url.Parse(endpointURL)
 	if err != nil {

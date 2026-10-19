@@ -1,4 +1,4 @@
-package integrations
+package consumer
 
 import (
 	"context"
@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/metorial/cli/internal/consumerapi"
 	"github.com/metorial/cli/internal/version"
-	"github.com/metorial/metorial-go/v1/resources/magicmcpservers"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -17,17 +17,17 @@ type magicMCPClient struct {
 	session *mcp.ClientSession
 }
 
-func connectMagicMCP(ctx context.Context, tokenSecret string, consumerProfileID string, server *magicmcpservers.MagicMcpServersGetOutput) (*magicMCPClient, error) {
+func connectMagicMCP(ctx context.Context, accessToken string, server *consumerapi.MagicMcpServer) (*magicMCPClient, error) {
 	if server == nil {
 		return nil, fmt.Errorf("metorial: integration is required")
 	}
-	if strings.TrimSpace(tokenSecret) == "" {
-		return nil, fmt.Errorf("metorial: magic MCP token secret is required")
+	if strings.TrimSpace(accessToken) == "" {
+		return nil, fmt.Errorf("metorial: an access token is required to connect to an integration")
 	}
 
-	endpointURL := primaryServerURLFromGet(server.Endpoints)
+	endpointURL := primaryServerURL(server)
 	if strings.TrimSpace(endpointURL) == "" {
-		return nil, fmt.Errorf("metorial: integration %s has no MCP endpoint", integrationGetIdentifier(server))
+		return nil, fmt.Errorf("metorial: integration %s has no MCP endpoint", integrationIdentifier(server))
 	}
 
 	client := mcp.NewClient(&mcp.Implementation{
@@ -43,9 +43,8 @@ func connectMagicMCP(ctx context.Context, tokenSecret string, consumerProfileID 
 		DisableStandaloneSSE: true,
 		HTTPClient: &http.Client{
 			Transport: &magicMCPAuthTransport{
-				base:              http.DefaultTransport,
-				bearerToken:       tokenSecret,
-				consumerProfileID: consumerProfileID,
+				base:        http.DefaultTransport,
+				bearerToken: accessToken,
 			},
 		},
 	}, nil)
@@ -151,17 +150,9 @@ func mcpContentToValues(contents []mcp.Content) []any {
 	return values
 }
 
-func primaryServerURLFromGet(endpoints []magicmcpservers.MagicMcpServersGetOutputEndpoints) string {
-	if len(endpoints) == 0 {
-		return ""
-	}
-	return endpoints[0].Url
-}
-
 type magicMCPAuthTransport struct {
-	base              http.RoundTripper
-	bearerToken       string
-	consumerProfileID string
+	base        http.RoundTripper
+	bearerToken string
 }
 
 func (t *magicMCPAuthTransport) RoundTrip(request *http.Request) (*http.Response, error) {
@@ -174,9 +165,6 @@ func (t *magicMCPAuthTransport) RoundTrip(request *http.Request) (*http.Response
 	cloned.Header = request.Header.Clone()
 	if strings.TrimSpace(t.bearerToken) != "" && strings.TrimSpace(cloned.Header.Get("Authorization")) == "" {
 		cloned.Header.Set("Authorization", "Bearer "+strings.TrimSpace(t.bearerToken))
-	}
-	if strings.TrimSpace(t.consumerProfileID) != "" && strings.TrimSpace(cloned.Header.Get("metorial-consumer-profile-id")) == "" {
-		cloned.Header.Set("metorial-consumer-profile-id", strings.TrimSpace(t.consumerProfileID))
 	}
 	if strings.TrimSpace(cloned.Header.Get("User-Agent")) == "" {
 		cloned.Header.Set("User-Agent", "metorial-cli/"+version.Version)
