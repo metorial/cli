@@ -43,13 +43,13 @@ Manage Metorial CLI authentication flows and saved profiles.
 	}
 
 	command.AddCommand(NewLoginCommand(ctx))
-	command.AddCommand(NewLogoutCommand())
+	command.AddCommand(NewLogoutCommand(ctx))
 	command.AddCommand(NewProfileCommand(ctx))
 
 	return command
 }
 
-func NewLogoutCommand() *cobra.Command {
+func NewLogoutCommand(ctx commandutil.Context) *cobra.Command {
 	return &cobra.Command{
 		Use:   "logout",
 		Short: "Remove the current profile from this machine",
@@ -59,8 +59,9 @@ func NewLogoutCommand() *cobra.Command {
 				return err
 			}
 
+			subjectType := ctx.App.SubjectType()
 			stdoutFeatures := terminal.DetectWriter(command.OutOrStdout())
-			currentProfile, ok := store.CurrentProfile()
+			currentProfile, ok := store.CurrentProfileFor(subjectType)
 			if !ok {
 				colors := terminal.NewColorizer(stdoutFeatures)
 				_, _ = fmt.Fprintln(command.OutOrStdout(), colors.Bold("No active profile is configured."))
@@ -74,7 +75,7 @@ func NewLogoutCommand() *cobra.Command {
 				return err
 			}
 
-			nextProfile, ok := store.CurrentProfile()
+			nextProfile, ok := store.CurrentProfileFor(subjectType)
 			if ok {
 				renderLogoutSuccess(command.OutOrStdout(), stdoutFeatures, *removedProfile, nextProfile)
 				return nil
@@ -103,25 +104,27 @@ func NewProfileCommand(ctx commandutil.Context) *cobra.Command {
 				return err
 			}
 
-			profiles := store.SortedProfiles()
+			subjectType := ctx.App.SubjectType()
+			profiles := store.SortedProfilesFor(subjectType)
 			if len(profiles) == 0 {
 				_, _ = fmt.Fprintln(command.OutOrStdout(), "No saved profiles.")
 				_, _ = fmt.Fprintf(command.OutOrStdout(), "Run \"%s login\" or \"%s add\" to create one.\n", command.Root().Name(), command.Parent().CommandPath())
 				return nil
 			}
 
-			currentProfile, _ := store.CurrentProfile()
+			currentProfile, _ := store.CurrentProfileFor(subjectType)
 			colors := terminal.NewColorizer(ctx.App.StdoutFeatures())
 			_, _ = fmt.Fprintln(command.OutOrStdout(), colors.Bold("Saved Profiles"))
 			_, _ = fmt.Fprintln(command.OutOrStdout(), colors.Muted("These are the profiles you are currently logged in with."))
 			_, _ = fmt.Fprintln(command.OutOrStdout())
 
+			scopeLabel, subjectLabel := profileLabels(subjectType)
 			table := output.Table{
 				Columns: []string{
 					colors.Accent("Status"),
 					colors.Accent("Profile"),
-					colors.Accent("Organization"),
-					colors.Accent("User"),
+					colors.Accent(scopeLabel),
+					colors.Accent(subjectLabel),
 					colors.Accent("API Host"),
 					colors.Accent("Expires"),
 				},
@@ -139,8 +142,8 @@ func NewProfileCommand(ctx commandutil.Context) *cobra.Command {
 					expires = profile.ExpiresAt.Local().Format("2006-01-02 15:04")
 				}
 
-				userLabel := commandutil.FirstNonEmpty(profile.UserEmail, profile.UserName, profile.UserID)
-				orgLabel := commandutil.FirstNonEmpty(profile.OrgName, profile.OrgID)
+				userLabel := profileSubjectValue(profile)
+				orgLabel := profileScopeValue(profile)
 				apiHost := commandutil.FirstNonEmpty(profile.APIHost, store.Settings().DefaultAPIHost, config.DefaultAPIHost)
 
 				name := profile.Name
@@ -171,16 +174,17 @@ func NewProfileCommand(ctx commandutil.Context) *cobra.Command {
 				return err
 			}
 
-			profile, err := findProfile(store, args[0])
+			profile, err := findProfile(store, ctx.App.SubjectType(), args[0])
 			if err != nil {
 				return err
 			}
 
+			scopeLabel, subjectLabel := profileLabels(profile.Subject())
 			_, _ = fmt.Fprintln(command.OutOrStdout(), "This is one of the profiles you are currently logged in with.")
 			_, _ = fmt.Fprintln(command.OutOrStdout())
 			_, _ = fmt.Fprintf(command.OutOrStdout(), "Name: %s\n", profile.Name)
-			_, _ = fmt.Fprintf(command.OutOrStdout(), "Organization: %s\n", commandutil.FirstNonEmpty(profile.OrgName, profile.OrgID))
-			_, _ = fmt.Fprintf(command.OutOrStdout(), "User: %s\n", commandutil.FirstNonEmpty(profile.UserEmail, profile.UserName, profile.UserID))
+			_, _ = fmt.Fprintf(command.OutOrStdout(), "%s: %s\n", scopeLabel, profileScopeValue(*profile))
+			_, _ = fmt.Fprintf(command.OutOrStdout(), "%s: %s\n", subjectLabel, profileSubjectValue(*profile))
 			_, _ = fmt.Fprintf(command.OutOrStdout(), "API host: %s\n", commandutil.FirstNonEmpty(profile.APIHost, store.Settings().DefaultAPIHost, config.DefaultAPIHost))
 			if profile.ExpiresAt.IsZero() {
 				_, _ = fmt.Fprintln(command.OutOrStdout(), "Expires: never")
@@ -203,7 +207,7 @@ func NewProfileCommand(ctx commandutil.Context) *cobra.Command {
 				return err
 			}
 
-			profile, err := findProfile(store, args[0])
+			profile, err := findProfile(store, ctx.App.SubjectType(), args[0])
 			if err != nil {
 				return err
 			}
@@ -239,8 +243,9 @@ func runLogin(command *cobra.Command, ctx commandutil.Context, apiHostFlag strin
 		return err
 	}
 
+	subjectType := ctx.App.SubjectType()
 	defaultHost := store.Settings().DefaultAPIHost
-	if currentProfile, ok := store.CurrentProfile(); ok && strings.TrimSpace(currentProfile.APIHost) != "" {
+	if currentProfile, ok := store.CurrentProfileFor(subjectType); ok && strings.TrimSpace(currentProfile.APIHost) != "" {
 		defaultHost = currentProfile.APIHost
 	}
 
@@ -254,7 +259,11 @@ func runLogin(command *cobra.Command, ctx commandutil.Context, apiHostFlag strin
 	renderLoginWaitingScreenWithFeatures(command.OutOrStdout(), stdoutFeatures)
 	spinner := terminal.NewSpinner(command.OutOrStdout(), stdoutFeatures, "Preparing authentication...")
 	spinner.Start()
-	startResponse, err := client.StartCLIAuth()
+	startSubjectType := ""
+	if subjectType == config.SubjectTypeConsumer {
+		startSubjectType = subjectType
+	}
+	startResponse, err := client.StartCLIAuth(startSubjectType)
 	spinner.Stop()
 	if err != nil {
 		return presentAuthError(err, "start login", "")
@@ -276,7 +285,7 @@ func runLogin(command *cobra.Command, ctx commandutil.Context, apiHostFlag strin
 
 		response, err := client.CompleteCLIAuth(startResponse.Token)
 		if err == nil {
-			profile, err := profileFromTokenResponse(store, apiHostURL.String(), response)
+			profile, err := profileFromTokenResponse(store, subjectType, apiHostURL.String(), response)
 			if err != nil {
 				return err
 			}
@@ -303,6 +312,9 @@ func runLogin(command *cobra.Command, ctx commandutil.Context, apiHostFlag strin
 			time.Sleep(interval)
 			continue
 		case "access_denied":
+			if subjectType == config.SubjectTypeConsumer {
+				return fmt.Errorf("metorial: sign-in was cancelled. Run \"metorial login\" to try again\nThe Metorial CLI signs you in to a portal. If no portal was available to pick, ask your administrator to invite you to one.")
+			}
 			return fmt.Errorf("metorial: sign-in was cancelled. Run \"metorial login\" to try again")
 		case "invalid_grant":
 			return fmt.Errorf("metorial: the login session is no longer valid. Run \"metorial login\" to start a new one")
@@ -312,42 +324,62 @@ func runLogin(command *cobra.Command, ctx commandutil.Context, apiHostFlag strin
 	}
 }
 
-func profileFromTokenResponse(store *config.Store, apiHost string, response *auth.TokenResponse) (*config.Profile, error) {
-	if strings.TrimSpace(response.Organization.ID) == "" || strings.TrimSpace(response.User.ID) == "" {
-		return nil, fmt.Errorf("metorial: login completed, but the server did not return enough profile information")
+func profileFromTokenResponse(store *config.Store, subjectType string, apiHost string, response *auth.TokenResponse) (*config.Profile, error) {
+	subjectType = config.NormalizeSubjectType(subjectType)
+	if config.NormalizeSubjectType(response.SubjectType) != subjectType {
+		return nil, fmt.Errorf("metorial: login completed, but the server issued a %s token instead of a %s token", config.NormalizeSubjectType(response.SubjectType), subjectType)
 	}
 
-	profileID := config.ProfileID(response.Organization.ID, response.User.ID)
-
-	name := ""
-	if existing, ok := store.ProfileByID(profileID); ok {
-		name = existing.Name
-	}
-	if strings.TrimSpace(name) == "" {
-		name = uniqueProfileName(store, profileID, response.Organization.Name)
-	}
-
-	now := time.Now().UTC()
-	expiresAt := time.Time{}
-	if response.ExpiresIn > 0 {
-		expiresAt = now.Add(time.Duration(response.ExpiresIn) * time.Second)
-	}
-
-	return &config.Profile{
-		ID:           profileID,
-		Name:         name,
+	profile := &config.Profile{
 		APIHost:      apiHost,
 		ClientID:     response.ClientID,
 		AccessToken:  response.AccessToken,
 		RefreshToken: response.RefreshToken,
 		TokenType:    commandutil.FirstNonEmpty(response.TokenType, "Bearer"),
-		ExpiresAt:    expiresAt,
 		OrgID:        response.Organization.ID,
 		OrgName:      response.Organization.Name,
 		UserID:       response.User.ID,
 		UserName:     response.User.Name,
 		UserEmail:    response.User.Email,
-	}, nil
+	}
+
+	nameBase := response.Organization.Name
+	if subjectType == config.SubjectTypeConsumer {
+		if response.ConsumerProfile == nil || strings.TrimSpace(response.ConsumerProfile.ID) == "" || response.Instance == nil || strings.TrimSpace(response.Instance.ID) == "" {
+			return nil, fmt.Errorf("metorial: login completed, but the server did not return enough profile information")
+		}
+
+		profile.SubjectType = config.SubjectTypeConsumer
+		profile.ID = config.ProfileID(response.Instance.ID, response.ConsumerProfile.ID)
+		profile.ConsumerProfileID = response.ConsumerProfile.ID
+		profile.ConsumerName = response.ConsumerProfile.Name
+		profile.ConsumerEmail = response.ConsumerProfile.Email
+		profile.InstanceID = response.Instance.ID
+		if response.Portal != nil {
+			profile.PortalID = response.Portal.ID
+			profile.PortalName = response.Portal.Name
+			nameBase = response.Portal.Name
+		}
+	} else {
+		if strings.TrimSpace(response.Organization.ID) == "" || strings.TrimSpace(response.User.ID) == "" {
+			return nil, fmt.Errorf("metorial: login completed, but the server did not return enough profile information")
+		}
+
+		profile.ID = config.ProfileID(response.Organization.ID, response.User.ID)
+	}
+
+	if existing, ok := store.ProfileByID(profile.ID); ok {
+		profile.Name = existing.Name
+	}
+	if strings.TrimSpace(profile.Name) == "" {
+		profile.Name = uniqueProfileName(store, profile.ID, nameBase)
+	}
+
+	if response.ExpiresIn > 0 {
+		profile.ExpiresAt = time.Now().UTC().Add(time.Duration(response.ExpiresIn) * time.Second)
+	}
+
+	return profile, nil
 }
 
 func uniqueProfileName(store *config.Store, profileID, organizationName string) string {
@@ -386,8 +418,8 @@ func profileNotFoundError(id string) error {
 	return fmt.Errorf("metorial: profile %q does not exist. Run \"metorial profiles list\" to see available profiles or \"metorial login\" to add a new one", id)
 }
 
-func findProfile(store *config.Store, value string) (*config.Profile, error) {
-	if profile, ok := store.ProfileByID(value); ok {
+func findProfile(store *config.Store, subjectType string, value string) (*config.Profile, error) {
+	if profile, ok := store.ProfileByID(value); ok && profile.Subject() == config.NormalizeSubjectType(subjectType) {
 		return profile, nil
 	}
 
@@ -397,7 +429,7 @@ func findProfile(store *config.Store, value string) (*config.Profile, error) {
 	}
 
 	var matched *config.Profile
-	for _, profile := range store.SortedProfiles() {
+	for _, profile := range store.SortedProfilesFor(subjectType) {
 		if profile.Name != normalized {
 			continue
 		}

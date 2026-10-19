@@ -26,14 +26,33 @@ type StartResponse struct {
 }
 
 type TokenResponse struct {
-	AccessToken  string      `json:"access_token"`
-	TokenType    string      `json:"token_type"`
-	RefreshToken string      `json:"refresh_token"`
-	ExpiresIn    int         `json:"expires_in"`
-	ClientID     string      `json:"client_id"`
-	User         UserInfo    `json:"user"`
-	Organization OrgInfo     `json:"organization"`
-	Scope        ScopeValues `json:"scope"`
+	AccessToken     string               `json:"access_token"`
+	TokenType       string               `json:"token_type"`
+	RefreshToken    string               `json:"refresh_token"`
+	ExpiresIn       int                  `json:"expires_in"`
+	ClientID        string               `json:"client_id"`
+	User            UserInfo             `json:"user"`
+	Organization    OrgInfo              `json:"organization"`
+	Scope           ScopeValues          `json:"scope"`
+	SubjectType     string               `json:"subject_type"`
+	ConsumerProfile *ConsumerProfileInfo `json:"consumer_profile"`
+	Portal          *PortalInfo          `json:"portal"`
+	Instance        *InstanceInfo        `json:"instance"`
+}
+
+type ConsumerProfileInfo struct {
+	ID    string `json:"id"`
+	Name  string `json:"name"`
+	Email string `json:"email"`
+}
+
+type PortalInfo struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+type InstanceInfo struct {
+	ID string `json:"id"`
 }
 
 type UserInfo struct {
@@ -62,9 +81,13 @@ func NewClient(baseURL *url.URL) *Client {
 	}
 }
 
-func (c *Client) StartCLIAuth() (*StartResponse, error) {
+func (c *Client) StartCLIAuth(subjectType string) (*StartResponse, error) {
 	response := &StartResponse{}
-	if err := c.postForm("/cli/auth/start", url.Values{}, response); err != nil {
+	values := url.Values{}
+	if subjectType = strings.TrimSpace(subjectType); subjectType != "" {
+		values.Set("subject_type", subjectType)
+	}
+	if err := c.postForm("/cli/auth/start", values, response); err != nil {
 		return nil, err
 	}
 	return response, nil

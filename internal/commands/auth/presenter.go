@@ -49,10 +49,11 @@ func renderLogoutSuccess(writer io.Writer, features terminal.Features, removedPr
 
 	_, _ = fmt.Fprintln(writer, colors.Success("Logged out from Metorial successfully."))
 	_, _ = fmt.Fprintln(writer)
+	scopeLabel, subjectLabel := profileLabels(removedProfile.Subject())
 	_ = output.RenderBox(writer, []string{
 		"Removed Profile: " + removedProfile.Name,
-		"Organization: " + commandutil.FirstNonEmpty(removedProfile.OrgName, removedProfile.OrgID),
-		"User: " + commandutil.FirstNonEmpty(removedProfile.UserEmail, removedProfile.UserName, removedProfile.UserID),
+		scopeLabel + ": " + profileScopeValue(removedProfile),
+		subjectLabel + ": " + profileSubjectValue(removedProfile),
 	}, output.BoxOptions{
 		MaxWidth: features.Width,
 		Unicode:  features.HasUnicode,
@@ -69,4 +70,25 @@ func renderLogoutSuccess(writer io.Writer, features terminal.Features, removedPr
 	_, _ = fmt.Fprintln(writer, colors.Bold("No profiles remain on this machine."))
 	_, _ = fmt.Fprintln(writer)
 	_, _ = fmt.Fprintln(writer, colors.Muted("Run `metorial login` to add a new profile."))
+}
+
+func profileLabels(subjectType string) (string, string) {
+	if config.NormalizeSubjectType(subjectType) == config.SubjectTypeConsumer {
+		return "Portal", "Consumer"
+	}
+	return "Organization", "User"
+}
+
+func profileScopeValue(profile config.Profile) string {
+	if profile.Subject() == config.SubjectTypeConsumer {
+		return commandutil.FirstNonEmpty(profile.PortalName, profile.PortalID, profile.InstanceID)
+	}
+	return commandutil.FirstNonEmpty(profile.OrgName, profile.OrgID)
+}
+
+func profileSubjectValue(profile config.Profile) string {
+	if profile.Subject() == config.SubjectTypeConsumer {
+		return commandutil.FirstNonEmpty(profile.ConsumerEmail, profile.ConsumerName, profile.ConsumerProfileID)
+	}
+	return commandutil.FirstNonEmpty(profile.UserEmail, profile.UserName, profile.UserID)
 }
