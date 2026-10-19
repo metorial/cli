@@ -12,9 +12,9 @@
     "publish:npm": "bun ./scripts/publish-npm.ts"
   },
   "devDependencies": {
-    "@types/node": "^24.5.2",
+    "@types/node": "^24.19.2",
     "memfs": "^4.49.0",
-    "tsup": "^8.5.0",
-    "typescript": "^5.9.2"
+    "tsup": "^8.5.1",
+    "typescript": "^5.9.3"
   }
 }
