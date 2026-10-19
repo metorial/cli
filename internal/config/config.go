@@ -35,11 +35,17 @@ type Runtime struct {
 	Refresh     func(force bool) (Runtime, error)
 }
 
+const (
+	SubjectTypeOrganizationMember = "organization_member"
+	SubjectTypeConsumer           = "consumer"
+)
+
 type File struct {
-	Version          int                `mapstructure:"version" json:"version"`
-	CurrentProfileID string             `mapstructure:"current_profile_id" json:"current_profile_id"`
-	Settings         Settings           `mapstructure:"settings" json:"settings"`
-	Profiles         map[string]Profile `mapstructure:"profiles" json:"profiles"`
+	Version                  int                `mapstructure:"version" json:"version"`
+	CurrentProfileID         string             `mapstructure:"current_profile_id" json:"current_profile_id"`
+	CurrentConsumerProfileID string             `mapstructure:"current_consumer_profile_id" json:"current_consumer_profile_id,omitempty"`
+	Settings                 Settings           `mapstructure:"settings" json:"settings"`
+	Profiles                 map[string]Profile `mapstructure:"profiles" json:"profiles"`
 }
 
 type Settings struct {
@@ -61,9 +67,18 @@ type Profile struct {
 	UserID       string    `mapstructure:"user_id" json:"user_id"`
 	UserName     string    `mapstructure:"user_name" json:"user_name"`
 	UserEmail    string    `mapstructure:"user_email" json:"user_email"`
-	CreatedAt    time.Time `mapstructure:"created_at" json:"created_at"`
-	UpdatedAt    time.Time `mapstructure:"updated_at" json:"updated_at"`
-	LastUsedAt   time.Time `mapstructure:"last_used_at" json:"last_used_at"`
+
+	SubjectType       string `mapstructure:"subject_type" json:"subject_type,omitempty"`
+	ConsumerProfileID string `mapstructure:"consumer_profile_id" json:"consumer_profile_id,omitempty"`
+	ConsumerName      string `mapstructure:"consumer_name" json:"consumer_name,omitempty"`
+	ConsumerEmail     string `mapstructure:"consumer_email" json:"consumer_email,omitempty"`
+	PortalID          string `mapstructure:"portal_id" json:"portal_id,omitempty"`
+	PortalName        string `mapstructure:"portal_name" json:"portal_name,omitempty"`
+	InstanceID        string `mapstructure:"instance_id" json:"instance_id,omitempty"`
+
+	CreatedAt  time.Time `mapstructure:"created_at" json:"created_at"`
+	UpdatedAt  time.Time `mapstructure:"updated_at" json:"updated_at"`
+	LastUsedAt time.Time `mapstructure:"last_used_at" json:"last_used_at"`
 }
 
 type Store struct {
@@ -367,13 +382,18 @@ func (s *ProjectStore) SetSelectedInstance(key, instanceID string) error {
 }
 
 func (s *Store) CurrentProfile() (*Profile, bool) {
+	return s.CurrentProfileFor(SubjectTypeOrganizationMember)
+}
+
+func (s *Store) CurrentProfileFor(subjectType string) (*Profile, bool) {
 	file := s.cached
-	if file.CurrentProfileID == "" {
+	currentID := file.currentProfileID(subjectType)
+	if currentID == "" {
 		return nil, false
 	}
 
-	profile, ok := file.Profiles[file.CurrentProfileID]
-	if !ok {
+	profile, ok := file.Profiles[currentID]
+	if !ok || profile.Subject() != NormalizeSubjectType(subjectType) {
 		return nil, false
 	}
 
@@ -405,12 +425,29 @@ func (s *Store) SortedProfiles() []Profile {
 	return profiles
 }
 
+func (s *Store) SortedProfilesFor(subjectType string) []Profile {
+	subjectType = NormalizeSubjectType(subjectType)
+
+	profiles := []Profile{}
+	for _, profile := range s.SortedProfiles() {
+		if profile.Subject() == subjectType {
+			profiles = append(profiles, profile)
+		}
+	}
+
+	return profiles
+}
+
 func (s *Store) UpsertProfile(profile Profile, setCurrent bool) error {
 	file := s.Read()
 	now := time.Now().UTC()
 
 	if profile.ID == "" {
-		profile.ID = ProfileID(profile.OrgID, profile.UserID)
+		if profile.Subject() == SubjectTypeConsumer {
+			profile.ID = ProfileID(profile.InstanceID, profile.ConsumerProfileID)
+		} else {
+			profile.ID = ProfileID(profile.OrgID, profile.UserID)
+		}
 	}
 
 	existing, ok := file.Profiles[profile.ID]
@@ -432,7 +469,7 @@ func (s *Store) UpsertProfile(profile Profile, setCurrent bool) error {
 
 	file.Profiles[profile.ID] = profile
 	if setCurrent {
-		file.CurrentProfileID = profile.ID
+		file.setCurrentProfileID(profile.Subject(), profile.ID)
 	}
 
 	return s.Write(file)
@@ -449,7 +486,7 @@ func (s *Store) SetCurrentProfile(id string) error {
 	profile.LastUsedAt = now
 	profile.UpdatedAt = now
 	file.Profiles[profile.ID] = profile
-	file.CurrentProfileID = profile.ID
+	file.setCurrentProfileID(profile.Subject(), profile.ID)
 
 	return s.Write(file)
 }
@@ -462,8 +499,9 @@ func (s *Store) RemoveProfile(id string) (*Profile, error) {
 	}
 
 	delete(file.Profiles, profile.ID)
-	if file.CurrentProfileID == profile.ID {
-		file.CurrentProfileID = newestProfileID(file.Profiles)
+	subjectType := profile.Subject()
+	if file.currentProfileID(subjectType) == profile.ID {
+		file.setCurrentProfileID(subjectType, newestProfileID(file.Profiles, subjectType))
 	}
 
 	if err := s.Write(file); err != nil {
@@ -486,8 +524,34 @@ func (p Profile) Expired(reference time.Time) bool {
 	return !p.ExpiresAt.After(reference)
 }
 
-func ProfileID(orgID, userID string) string {
-	return strings.TrimSpace(orgID) + ":" + strings.TrimSpace(userID)
+func (p Profile) Subject() string {
+	return NormalizeSubjectType(p.SubjectType)
+}
+
+func NormalizeSubjectType(subjectType string) string {
+	if strings.TrimSpace(subjectType) == SubjectTypeConsumer {
+		return SubjectTypeConsumer
+	}
+	return SubjectTypeOrganizationMember
+}
+
+func ProfileID(scopeID, subjectID string) string {
+	return strings.TrimSpace(scopeID) + ":" + strings.TrimSpace(subjectID)
+}
+
+func (f File) currentProfileID(subjectType string) string {
+	if NormalizeSubjectType(subjectType) == SubjectTypeConsumer {
+		return f.CurrentConsumerProfileID
+	}
+	return f.CurrentProfileID
+}
+
+func (f *File) setCurrentProfileID(subjectType, id string) {
+	if NormalizeSubjectType(subjectType) == SubjectTypeConsumer {
+		f.CurrentConsumerProfileID = id
+		return
+	}
+	f.CurrentProfileID = id
 }
 
 func defaultFile() File {
@@ -506,19 +570,21 @@ func cloneFile(file File) File {
 	return clone
 }
 
-func newestProfileID(profiles map[string]Profile) string {
-	if len(profiles) == 0 {
-		return ""
-	}
-
+func newestProfileID(profiles map[string]Profile, subjectType string) string {
 	type pair struct {
 		id      string
 		profile Profile
 	}
 
+	subjectType = NormalizeSubjectType(subjectType)
 	items := make([]pair, 0, len(profiles))
 	for id, profile := range profiles {
-		items = append(items, pair{id: id, profile: profile})
+		if profile.Subject() == subjectType {
+			items = append(items, pair{id: id, profile: profile})
+		}
+	}
+	if len(items) == 0 {
+		return ""
 	}
 
 	sort.SliceStable(items, func(left, right int) bool {

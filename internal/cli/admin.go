@@ -13,10 +13,13 @@ import (
 	sandboxcmd "github.com/metorial/cli/internal/commands/sandbox"
 	systemcmd "github.com/metorial/cli/internal/commands/system"
 	"github.com/metorial/cli/internal/commandutil"
+	"github.com/metorial/cli/internal/config"
 	"github.com/spf13/cobra"
 )
 
 func newAdminRoot(application *app.App) (*cobra.Command, error) {
+	application.SetSubjectType(config.SubjectTypeOrganizationMember)
+
 	command, _, ctx, err := newBaseRoot(application, rootDefinition{
 		kind:  rootKindAdmin,
 		use:   "metorial-admin",
@@ -37,7 +40,7 @@ func newAdminRoot(application *app.App) (*cobra.Command, error) {
 		command.AddCommand(systemcmd.NewOpenCommand())
 		command.AddCommand(authcmd.NewCommand(ctx))
 		command.AddCommand(authcmd.NewLoginCommand(ctx))
-		command.AddCommand(authcmd.NewLogoutCommand())
+		command.AddCommand(authcmd.NewLogoutCommand(ctx))
 		command.AddCommand(instancecmd.NewCommand(ctx))
 		command.AddCommand(examplecmd.NewCommand(ctx))
 		command.AddCommand(completioncmd.NewCommand(command.OutOrStdout()))

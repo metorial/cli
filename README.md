@@ -2,7 +2,7 @@
 
 Metorial ships two command line tools:
 
-- **`metorial`** — consumer / agent CLI for discovering integrations and calling MCP tools
+- **`metorial`** — consumer / agent CLI for connecting your portal's integrations and calling MCP tools
 - **`metorial-admin`** — generated admin CLI for Magnetar API resources, raw requests, and examples
 
 Both are agent-first: they are meant to be used by developers and by agents.
@@ -55,18 +55,35 @@ npm create metorial@latest <identifier> [path]
 
 ## Consumer CLI (`metorial`)
 
-Sign in, then work with integrations and MCP tools:
+`metorial` signs you in as a consumer of a Metorial portal. `metorial login` opens the browser, where you pick the portal to use. It then offers the same catalog and integrations as the portal itself.
 
 ```bash
 metorial login
-metorial list
+metorial whoami
+
+# Browse the portal catalog and connect an integration
 metorial catalog list
+metorial catalog get <catalog-item-id>
+metorial setup <catalog-item-id>
+metorial request-access <catalog-item-id> --message "Need this for reporting"
+
+# Use and manage your integrations
+metorial list
 metorial tools <integration-id>
 metorial call <integration-id> <tool> -d '{"query":"..."}'
-metorial open
+metorial update <integration-id> --name "Work GitHub"
+metorial reconnect <catalog-item-id> <integration-id>
+metorial remove <integration-id>
+
+# Install into a local MCP client
+metorial client list
+metorial install codex <integration-id>
+metorial tokens list
 ```
 
-Resource administration, `fetch`/`curl`, and `example` live in `metorial-admin`.
+`setup` opens the portal's setup page in your browser, waits for you to finish, and then creates the integration. `reconnect` runs the same flow for an existing integration and keeps its endpoint URL. `install` creates a long-lived MCP token for the client, and `tokens revoke <token-id>` removes it.
+
+Consumer logins are only available to users with a consumer profile on an active portal. Organization administration, `fetch`/`curl`, and `example` live in `metorial-admin`.
 
 ## Admin CLI (`metorial-admin`)
 

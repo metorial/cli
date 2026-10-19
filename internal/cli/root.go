@@ -115,7 +115,9 @@ func newBaseRoot(application *app.App, definition rootDefinition) (*cobra.Comman
 
 	command.PersistentFlags().StringVar(&options.APIKey, "api-key", "", "API key to use for authenticated requests")
 	command.PersistentFlags().StringVar(&options.APIHost, "api-host", "", "API host or base URL (default: api.metorial.com)")
-	command.PersistentFlags().StringVar(&options.Instance, "instance", "", "Instance ID to use for organization-scoped tokens")
+	if definition.kind == rootKindAdmin {
+		command.PersistentFlags().StringVar(&options.Instance, "instance", "", "Instance ID to use for organization-scoped tokens")
+	}
 	command.PersistentFlags().StringVar(&options.Profile, "profile", "", "Profile ID to use for authenticated requests")
 	command.PersistentFlags().StringVar(&options.Format, "format", defaultFormat, "Output format: yaml, toml, json, or structured")
 	_ = command.RegisterFlagCompletionFunc("format", func(command *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {

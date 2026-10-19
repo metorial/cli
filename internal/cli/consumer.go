@@ -4,15 +4,17 @@ import (
 	"github.com/metorial/cli/internal/app"
 	authcmd "github.com/metorial/cli/internal/commands/auth"
 	completioncmd "github.com/metorial/cli/internal/commands/completion"
-	instancecmd "github.com/metorial/cli/internal/commands/instance"
-	integrationscmd "github.com/metorial/cli/internal/commands/integrations"
+	consumercmd "github.com/metorial/cli/internal/commands/consumer"
 	settingscmd "github.com/metorial/cli/internal/commands/settings"
 	systemcmd "github.com/metorial/cli/internal/commands/system"
 	"github.com/metorial/cli/internal/commandutil"
+	"github.com/metorial/cli/internal/config"
 	"github.com/spf13/cobra"
 )
 
 func newConsumerRoot(application *app.App) (*cobra.Command, error) {
+	application.SetSubjectType(config.SubjectTypeConsumer)
+
 	command, _, ctx, err := newBaseRoot(application, rootDefinition{
 		kind:  rootKindConsumer,
 		use:   "metorial",
@@ -25,18 +27,13 @@ func newConsumerRoot(application *app.App) (*cobra.Command, error) {
 
 	command.AddCommand(systemcmd.NewVersionCommand())
 	command.AddCommand(systemcmd.NewFeedbackCommand())
-	command.AddCommand(integrationscmd.NewCommands(ctx)...)
-
-	if !commandutil.BrowserShellEnabled() {
-		command.AddCommand(systemcmd.NewUpgradeCommand(application))
-		command.AddCommand(systemcmd.NewOpenCommand())
-		command.AddCommand(authcmd.NewCommand(ctx))
-		command.AddCommand(authcmd.NewLoginCommand(ctx))
-		command.AddCommand(authcmd.NewLogoutCommand())
-		command.AddCommand(instancecmd.NewCommand(ctx))
-		command.AddCommand(authcmd.NewProfileCommand(ctx))
-		command.AddCommand(settingscmd.NewCommand(ctx))
-		command.AddCommand(completioncmd.NewCommand(command.OutOrStdout()))
-	}
+	command.AddCommand(systemcmd.NewUpgradeCommand(application))
+	command.AddCommand(consumercmd.NewCommands(ctx)...)
+	command.AddCommand(authcmd.NewCommand(ctx))
+	command.AddCommand(authcmd.NewLoginCommand(ctx))
+	command.AddCommand(authcmd.NewLogoutCommand(ctx))
+	command.AddCommand(authcmd.NewProfileCommand(ctx))
+	command.AddCommand(settingscmd.NewCommand(ctx))
+	command.AddCommand(completioncmd.NewCommand(command.OutOrStdout()))
 	return command, nil
 }

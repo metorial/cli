@@ -1,6 +1,8 @@
 package config
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 )
@@ -142,5 +144,79 @@ func TestProjectStoreRoundTrip(t *testing.T) {
 
 	if instanceID != "inst_123" {
 		t.Fatalf("SelectedInstance() = %q, want %q", instanceID, "inst_123")
+	}
+}
+
+func TestLegacyProfilesDefaultToOrganizationMember(t *testing.T) {
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+
+	path, err := DefaultConfigPath()
+	if err != nil {
+		t.Fatalf("DefaultConfigPath() error = %v", err)
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	legacy := `{"version":1,"current_profile_id":"org_1:usr_1","profiles":{"org_1:usr_1":{"id":"org_1:usr_1","name":"legacy","org_id":"org_1","user_id":"usr_1"}}}`
+	if err := os.WriteFile(path, []byte(legacy), 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	store, err := OpenStore()
+	if err != nil {
+		t.Fatalf("OpenStore() error = %v", err)
+	}
+
+	current, ok := store.CurrentProfile()
+	if !ok || current.Name != "legacy" {
+		t.Fatalf("CurrentProfile() = %+v, %v, want legacy", current, ok)
+	}
+	if current.Subject() != SubjectTypeOrganizationMember {
+		t.Fatalf("Subject() = %q, want %q", current.Subject(), SubjectTypeOrganizationMember)
+	}
+	if _, ok := store.CurrentProfileFor(SubjectTypeConsumer); ok {
+		t.Fatalf("CurrentProfileFor(consumer) should be empty for a legacy config")
+	}
+	if got := len(store.SortedProfilesFor(SubjectTypeConsumer)); got != 0 {
+		t.Fatalf("SortedProfilesFor(consumer) = %d profiles, want 0", got)
+	}
+}
+
+func TestProfilesAreSeparatedBySubject(t *testing.T) {
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+
+	store, err := OpenStore()
+	if err != nil {
+		t.Fatalf("OpenStore() error = %v", err)
+	}
+
+	member := Profile{Name: "member", OrgID: "org_1", UserID: "usr_1"}
+	consumer := Profile{Name: "consumer", SubjectType: SubjectTypeConsumer, InstanceID: "ins_1", ConsumerProfileID: "cpr_1"}
+	if err := store.UpsertProfile(member, true); err != nil {
+		t.Fatalf("UpsertProfile(member) error = %v", err)
+	}
+	if err := store.UpsertProfile(consumer, true); err != nil {
+		t.Fatalf("UpsertProfile(consumer) error = %v", err)
+	}
+
+	currentMember, ok := store.CurrentProfileFor(SubjectTypeOrganizationMember)
+	if !ok || currentMember.ID != ProfileID("org_1", "usr_1") {
+		t.Fatalf("CurrentProfileFor(member) = %+v, %v", currentMember, ok)
+	}
+	currentConsumer, ok := store.CurrentProfileFor(SubjectTypeConsumer)
+	if !ok || currentConsumer.ID != ProfileID("ins_1", "cpr_1") {
+		t.Fatalf("CurrentProfileFor(consumer) = %+v, %v", currentConsumer, ok)
+	}
+
+	if _, err := store.RemoveProfile(currentConsumer.ID); err != nil {
+		t.Fatalf("RemoveProfile() error = %v", err)
+	}
+	if _, ok := store.CurrentProfileFor(SubjectTypeConsumer); ok {
+		t.Fatalf("CurrentProfileFor(consumer) should be empty after removing the only consumer profile")
+	}
+	if _, ok := store.CurrentProfile(); !ok {
+		t.Fatalf("removing a consumer profile should not reset the member profile")
 	}
 }

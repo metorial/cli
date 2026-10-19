@@ -2,7 +2,7 @@
 
 Metorial ships two CLIs:
 
-- `metorial` — integrations and MCP tool calling
+- `metorial` — your portal's integrations and MCP tool calling
 - `metorial-admin` — Magnetar resource admin, `fetch`, and examples
 
 ## Install
@@ -46,8 +46,10 @@ scoop install metorial-admin
 
 ```bash
 metorial login
-metorial list
 metorial catalog list
+metorial setup <catalog-item-id>
+metorial list
+metorial call <integration-id> <tool> -d '{}'
 ```
 
 Admin resources:

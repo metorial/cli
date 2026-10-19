@@ -22,6 +22,20 @@ type App struct {
 
 	stdoutFeatures terminal.Features
 	stderrFeatures terminal.Features
+
+	subjectType string
+}
+
+func (a *App) SetSubjectType(subjectType string) {
+	a.subjectType = config.NormalizeSubjectType(subjectType)
+}
+
+func (a *App) SubjectType() string {
+	return config.NormalizeSubjectType(a.subjectType)
+}
+
+func (a *App) IsConsumer() bool {
+	return a.SubjectType() == config.SubjectTypeConsumer
 }
 
 func New() *App {
@@ -50,6 +64,10 @@ func (a *App) ResolveConfig(apiKeyFlag, apiHostFlag, profileFlag, instanceFlag s
 		return config.Runtime{}, err
 	}
 
+	if a.IsConsumer() {
+		return runtime, nil
+	}
+
 	return a.resolveInstance(runtime, instanceFlag)
 }
 
@@ -69,14 +87,14 @@ func (a *App) ResolveAuthConfig(apiKeyFlag, apiHostFlag, profileFlag string) (co
 	var ok bool
 	if selectedProfileID != "" {
 		profile, ok = store.ProfileByID(selectedProfileID)
-		if !ok {
+		if !ok || profile.Subject() != a.SubjectType() {
 			return config.Runtime{}, fmt.Errorf(
 				"metorial: profile %q does not exist.\nRun \"metorial profiles list\" to see available profiles or \"metorial login\" to add a new one",
 				selectedProfileID,
 			)
 		}
 	} else {
-		profile, ok = store.CurrentProfile()
+		profile, ok = store.CurrentProfileFor(a.SubjectType())
 	}
 
 	defaultHost := store.Settings().DefaultAPIHost
@@ -234,6 +252,18 @@ func (a *App) refreshProfileRuntime(apiHostFlag, profileID string, force bool) (
 		profile.UserID = response.User.ID
 		profile.UserName = response.User.Name
 		profile.UserEmail = response.User.Email
+	}
+	if response.ConsumerProfile != nil && strings.TrimSpace(response.ConsumerProfile.ID) != "" {
+		profile.ConsumerProfileID = response.ConsumerProfile.ID
+		profile.ConsumerName = response.ConsumerProfile.Name
+		profile.ConsumerEmail = response.ConsumerProfile.Email
+	}
+	if response.Portal != nil && strings.TrimSpace(response.Portal.ID) != "" {
+		profile.PortalID = response.Portal.ID
+		profile.PortalName = response.Portal.Name
+	}
+	if response.Instance != nil && strings.TrimSpace(response.Instance.ID) != "" {
+		profile.InstanceID = response.Instance.ID
 	}
 
 	if err := store.UpsertProfile(*profile, true); err != nil {

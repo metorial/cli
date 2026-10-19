@@ -34,3 +34,32 @@ func (a *App) promptForInstance(instances []instancesresource.InstancesListOutpu
 	selected := instances[index]
 	return &selected, nil
 }
+
+func (a *App) PromptSelect(label string, items []string) (int, error) {
+	prompt := promptui.Select{
+		Label:  label,
+		Items:  items,
+		Size:   10,
+		Stdin:  readerCloser{Reader: a.Stdin},
+		Stdout: writerCloser{Writer: a.Stdout},
+	}
+
+	index, _, err := prompt.Run()
+	if err != nil {
+		return -1, fmt.Errorf("metorial: selection was cancelled")
+	}
+
+	return index, nil
+}
+
+func (a *App) PromptConfirm(label string) bool {
+	prompt := promptui.Prompt{
+		Label:     label,
+		IsConfirm: true,
+		Stdin:     readerCloser{Reader: a.Stdin},
+		Stdout:    writerCloser{Writer: a.Stdout},
+	}
+
+	_, err := prompt.Run()
+	return err == nil
+}
