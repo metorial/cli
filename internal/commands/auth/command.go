@@ -70,6 +70,10 @@ func NewLogoutCommand(ctx commandutil.Context) *cobra.Command {
 				return nil
 			}
 
+			if currentProfile.Unclaimed && strings.TrimSpace(currentProfile.ClaimURL) != "" {
+				renderUnclaimedLogoutWarning(command.OutOrStdout(), stdoutFeatures, *currentProfile)
+			}
+
 			removedProfile, err := store.RemoveProfile(currentProfile.ID)
 			if err != nil {
 				return err
@@ -285,7 +289,7 @@ func runLogin(command *cobra.Command, ctx commandutil.Context, apiHostFlag strin
 
 		response, err := client.CompleteCLIAuth(startResponse.Token)
 		if err == nil {
-			profile, err := profileFromTokenResponse(store, subjectType, apiHostURL.String(), response)
+			profile, err := ProfileFromTokenResponse(store, subjectType, apiHostURL.String(), response)
 			if err != nil {
 				return err
 			}
@@ -324,7 +328,7 @@ func runLogin(command *cobra.Command, ctx commandutil.Context, apiHostFlag strin
 	}
 }
 
-func profileFromTokenResponse(store *config.Store, subjectType string, apiHost string, response *auth.TokenResponse) (*config.Profile, error) {
+func ProfileFromTokenResponse(store *config.Store, subjectType string, apiHost string, response *auth.TokenResponse) (*config.Profile, error) {
 	subjectType = config.NormalizeSubjectType(subjectType)
 	if config.NormalizeSubjectType(response.SubjectType) != subjectType {
 		return nil, fmt.Errorf("metorial: login completed, but the server issued a %s token instead of a %s token", config.NormalizeSubjectType(response.SubjectType), subjectType)

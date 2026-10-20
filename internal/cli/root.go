@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/metorial/cli/internal/app"
+	onboardingcmd "github.com/metorial/cli/internal/commands/onboarding"
 	"github.com/metorial/cli/internal/commandutil"
 	"github.com/metorial/cli/internal/config"
 	"github.com/metorial/cli/internal/output"
@@ -132,6 +133,10 @@ func newBaseRoot(application *app.App, definition rootDefinition) (*cobra.Comman
 	}
 
 	command.PersistentPreRunE = func(command *cobra.Command, args []string) error {
+		if definition.kind == rootKindAdmin && !commandutil.BrowserShellEnabled() {
+			onboardingcmd.MaybePrintUnclaimedNotice(application, command, options)
+		}
+
 		if shouldSkipUpgradeNotice(command) {
 			return nil
 		}

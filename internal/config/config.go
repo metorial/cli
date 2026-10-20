@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/metorial/cli/internal/claimlink"
 	metorial "github.com/metorial/metorial-go/v1"
 )
 
@@ -75,6 +76,16 @@ type Profile struct {
 	PortalID          string `mapstructure:"portal_id" json:"portal_id,omitempty"`
 	PortalName        string `mapstructure:"portal_name" json:"portal_name,omitempty"`
 	InstanceID        string `mapstructure:"instance_id" json:"instance_id,omitempty"`
+
+	Unclaimed      bool       `mapstructure:"unclaimed" json:"unclaimed,omitempty"`
+	ClaimToken     string     `mapstructure:"claim_token" json:"claim_token,omitempty"`
+	ClaimURL       string     `mapstructure:"claim_url" json:"claim_url,omitempty"`
+	OrgSlug        string     `mapstructure:"org_slug" json:"org_slug,omitempty"`
+	ClaimCheckedAt *time.Time `mapstructure:"claim_checked_at" json:"claim_checked_at,omitempty"`
+
+	ClaimEmail           string `mapstructure:"claim_email" json:"claim_email,omitempty"`
+	ClaimEmailHint       string `mapstructure:"claim_email_hint" json:"claim_email_hint,omitempty"`
+	ClaimEmailHintSource string `mapstructure:"claim_email_hint_source" json:"claim_email_hint_source,omitempty"`
 
 	CreatedAt  time.Time `mapstructure:"created_at" json:"created_at"`
 	UpdatedAt  time.Time `mapstructure:"updated_at" json:"updated_at"`
@@ -522,6 +533,25 @@ func (p Profile) Expired(reference time.Time) bool {
 	}
 
 	return !p.ExpiresAt.After(reference)
+}
+
+const claimLinkLifetime = 24 * time.Hour
+
+// ClaimLink signs a fresh claim link with the claim token, so the link printed to terminals and
+// agent transcripts stops working on its own. The region comes from the stored link. It falls back
+// to the stored link when the profile has no claim token or the stored link has no base to sign onto.
+func (p Profile) ClaimLink(now time.Time) string {
+	base, err := url.Parse(strings.TrimSpace(p.ClaimURL))
+	if err != nil || base.Host == "" || strings.TrimSpace(p.ClaimToken) == "" {
+		return p.ClaimURL
+	}
+
+	query := base.Query()
+	region := claimlink.Region(query.Get("token"))
+	query.Set("token", claimlink.Sign(p.ClaimToken, claimlink.PurposeClaim, region, now.Add(claimLinkLifetime)))
+	base.RawQuery = query.Encode()
+
+	return base.String()
 }
 
 func (p Profile) Subject() string {
