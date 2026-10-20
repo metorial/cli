@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "generate": "bun ./src/index.ts",
+    "generate": "bun ./src/index.ts --snapshot=${INTROSPECTION_SNAPSHOT:-../../clients/.introspection/snapshot.json}",
     "start": "bun ./src/index.ts"
   },
   "devDependencies": {
