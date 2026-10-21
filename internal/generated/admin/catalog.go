@@ -7479,7 +7479,7 @@ func Catalog() []resourcecmd.ResourceSpec {
 			Plural:   "api-keys",
 			Singular: "api-keys",
 			Short:    "API Key",
-			Long:     "Read and write API key information",
+			Long:     "Read and write API key information. The secret of a newly created API key is shown only once, when it is created.",
 			Operations: []resourcecmd.OperationSpec{
 				{
 					Name:       "create",

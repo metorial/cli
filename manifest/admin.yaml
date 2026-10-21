@@ -420,6 +420,11 @@ commands:
 
   - path: [api-keys]
     resource: apiKeys
+    long: Read and write API key information. The secret of a newly created API key is shown only once, when it is created.
+    args:
+      create:
+        type: { flag: type, required: false }
+        instance_id: { flag: instance-id, required: false }
 
   - path: [outposts]
     resource: outposts

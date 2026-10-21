@@ -149,7 +149,7 @@ func newPublicResourceAction(
 				return err
 			}
 
-			options, err := buildResourceFetchOptions(command, resource, operation, args)
+			options, err := buildResourceFetchOptions(command, resource, operation, args, runtime.InstanceID)
 			if err != nil {
 				return err
 			}
@@ -221,6 +221,7 @@ func buildResourceFetchOptions(
 	resource resourcecmd.ResourceSpec,
 	operation resourcecmd.OperationSpec,
 	args []string,
+	resolvedInstanceID string,
 ) (fetch.Options, error) {
 	method, err := resourceOperationMethod(operation)
 	if err != nil {
@@ -238,7 +239,7 @@ func buildResourceFetchOptions(
 	}
 
 	if operationUsesBody(operation) {
-		body, err := buildResourceBody(command, resource, operation, args)
+		body, err := buildResourceBody(command, resource, operation, args, resolvedInstanceID)
 		if err != nil {
 			return fetch.Options{}, err
 		}
@@ -340,7 +341,7 @@ func buildResourceTarget(
 	return path, nil
 }
 
-func buildResourceBody(command *cobra.Command, resource resourcecmd.ResourceSpec, operation resourcecmd.OperationSpec, args []string) (map[string]any, error) {
+func buildResourceBody(command *cobra.Command, resource resourcecmd.ResourceSpec, operation resourcecmd.OperationSpec, args []string, resolvedInstanceID string) (map[string]any, error) {
 	body, err := readExplicitBody(command)
 	if err != nil {
 		return nil, err
@@ -406,7 +407,7 @@ func buildResourceBody(command *cobra.Command, resource resourcecmd.ResourceSpec
 		}
 	}
 
-	if err := applySpecialCreateBody(command, resource, operation, body); err != nil {
+	if err := applySpecialCreateBody(command, resource, operation, body, resolvedInstanceID); err != nil {
 		return nil, err
 	}
 
@@ -837,12 +838,14 @@ func transformResourceResponse(response *fetch.Response, resource resourcecmd.Re
 	return nil
 }
 
-func applySpecialCreateBody(command *cobra.Command, resource resourcecmd.ResourceSpec, operation resourcecmd.OperationSpec, body map[string]any) error {
+func applySpecialCreateBody(command *cobra.Command, resource resourcecmd.ResourceSpec, operation resourcecmd.OperationSpec, body map[string]any, resolvedInstanceID string) error {
 	if operation.Name != resourcecmd.OperationCreate {
 		return nil
 	}
 
 	switch resource.Plural {
+	case "api-keys":
+		return applyAPIKeyCreateDefaults(body, resolvedInstanceID)
 	case "sessions":
 		providers, err := readProviderSpecs(command)
 		if err != nil {
@@ -862,6 +865,54 @@ func applySpecialCreateBody(command *cobra.Command, resource resourcecmd.Resourc
 	}
 
 	return nil
+}
+
+func applyAPIKeyCreateDefaults(body map[string]any, resolvedInstanceID string) error {
+	keyType, err := stringBodyValue(body, "type")
+	if err != nil {
+		return err
+	}
+
+	switch keyType {
+	case "":
+		body["type"] = "instance_access_token_secret"
+	case "instance_access_token_secret", "instance_access_token_publishable":
+		body["type"] = keyType
+	default:
+		return fmt.Errorf("metorial: --type must be instance_access_token_secret or instance_access_token_publishable")
+	}
+
+	instanceID, err := stringBodyValue(body, "instance_id")
+	if err != nil {
+		return err
+	}
+	if instanceID != "" {
+		body["instance_id"] = instanceID
+		return nil
+	}
+
+	instanceID = strings.TrimSpace(resolvedInstanceID)
+	if instanceID == "" {
+		return fmt.Errorf("metorial: an instance is required to create an API key.\nUse --instance <instance-id> or --instance-id <instance-id>")
+	}
+
+	body["instance_id"] = instanceID
+
+	return nil
+}
+
+func stringBodyValue(body map[string]any, key string) (string, error) {
+	raw, ok := body[key]
+	if !ok || raw == nil {
+		return "", nil
+	}
+
+	value, ok := raw.(string)
+	if !ok {
+		return "", fmt.Errorf("metorial: %s must be a string", key)
+	}
+
+	return strings.TrimSpace(value), nil
 }
 
 func readProviderSpecs(command *cobra.Command) ([]any, error) {
