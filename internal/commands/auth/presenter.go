@@ -3,6 +3,7 @@ package auth
 import (
 	"fmt"
 	"io"
+	"time"
 
 	"github.com/metorial/cli/internal/commandutil"
 	"github.com/metorial/cli/internal/config"
@@ -22,13 +23,9 @@ func renderLoginAuthScreen(writer io.Writer, features terminal.Features, authURL
 
 	_, _ = fmt.Fprintln(writer, colors.Notice("Please sign in to your Metorial account."))
 	_, _ = fmt.Fprintln(writer)
-	_ = output.RenderBox(writer, []string{
-		authURL,
-		"Verification Code: " + userCode,
-	}, output.BoxOptions{
-		MaxWidth: features.Width,
-		Unicode:  features.HasUnicode,
-	})
+	_, _ = fmt.Fprintln(writer, authURL)
+	_, _ = fmt.Fprintln(writer)
+	_, _ = fmt.Fprintf(writer, "%s %s\n", colors.Muted("Verification Code:"), colors.Bold(userCode))
 	_, _ = fmt.Fprintln(writer)
 
 	if browserOpenSupported {
@@ -70,6 +67,15 @@ func renderLogoutSuccess(writer io.Writer, features terminal.Features, removedPr
 	_, _ = fmt.Fprintln(writer, colors.Bold("No profiles remain on this machine."))
 	_, _ = fmt.Fprintln(writer)
 	_, _ = fmt.Fprintln(writer, colors.Muted("Run `metorial login` to add a new profile."))
+}
+
+func renderUnclaimedLogoutWarning(writer io.Writer, features terminal.Features, profile config.Profile) {
+	colors := terminal.NewColorizer(features)
+
+	_, _ = fmt.Fprintln(writer, colors.Notice("This profile uses an unclaimed organization."))
+	_, _ = fmt.Fprintln(writer, colors.Muted("The claim link only exists on this machine. Save it now to claim the organization later:"))
+	_, _ = fmt.Fprintln(writer, profile.ClaimLink(time.Now()))
+	_, _ = fmt.Fprintln(writer)
 }
 
 func profileLabels(subjectType string) (string, string) {

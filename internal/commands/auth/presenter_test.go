@@ -2,6 +2,7 @@ package auth
 
 import (
 	"bytes"
+	"slices"
 	"strings"
 	"testing"
 
@@ -24,6 +25,19 @@ func TestRenderLoginAuthScreenIncludesBrowserMessageWhenSupported(t *testing.T) 
 	}
 	if !strings.Contains(rendered, "Opening browser for Metorial authentication.") {
 		t.Fatalf("renderLoginAuthScreen() missing browser copy: %q", rendered)
+	}
+}
+
+func TestRenderLoginAuthScreenPrintsTheURLOnItsOwnLine(t *testing.T) {
+	t.Parallel()
+
+	authURL := "https://app.metorial.com/oauth/authorize?token=" + strings.Repeat("a", 200)
+
+	var output bytes.Buffer
+	renderLoginAuthScreen(&output, terminal.Features{Width: 80, HasUnicode: true}, authURL, "ABCD-1234", false)
+
+	if !slices.Contains(strings.Split(output.String(), "\n"), authURL) {
+		t.Fatalf("expected the unwrapped URL on its own line: %q", output.String())
 	}
 }
 
