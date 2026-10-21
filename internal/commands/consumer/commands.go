@@ -1,6 +1,7 @@
 package consumer
 
 import (
+	skillscmd "github.com/metorial/cli/internal/commands/skills"
 	"github.com/metorial/cli/internal/commandutil"
 	"github.com/spf13/cobra"
 )
@@ -20,5 +21,5 @@ func NewCommands(ctx commandutil.Context) []*cobra.Command {
 		commandutil.SetCommandCategory(command, commandutil.CommandCategoryIntegrations)
 	}
 
-	return commands
+	return append(commands, skillscmd.NewCommand(ctx))
 }

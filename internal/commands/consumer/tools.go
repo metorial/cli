@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/metorial/cli/internal/app"
+	"github.com/metorial/cli/internal/commandutil"
 	"github.com/metorial/cli/internal/consumerapi"
 	"github.com/metorial/cli/internal/fetch"
 	"github.com/metorial/cli/internal/output"
@@ -55,7 +56,7 @@ func newToolsCommand(env commandEnv) *cobra.Command {
 				tips = append(tips, integrationTips(server, true)[1:]...)
 			}
 
-			return env.write(command, map[string]any{
+			return env.ctx.Write(command, map[string]any{
 				"integration": server,
 				"providers":   server.Providers,
 				"tools":       liveTools,
@@ -170,7 +171,7 @@ func connectIntegration(ctx context.Context, env commandEnv, integrationID strin
 func renderIntegrationTools(writer io.Writer, features terminal.Features, server *consumerapi.MagicMcpServer, tools []*mcp.Tool, tips []string) error {
 	colors := terminal.NewColorizer(features)
 	serverTitle := integrationTitle(server)
-	renderTitle(writer, features, serverTitle, server.ID)
+	commandutil.RenderTitle(writer, features, serverTitle, server.ID)
 
 	for _, provider := range server.Providers {
 		if provider.Provider == nil {
@@ -180,7 +181,7 @@ func renderIntegrationTools(writer io.Writer, features terminal.Features, server
 			_, _ = fmt.Fprintln(writer, colors.Accent(provider.Provider.Name))
 		}
 		_, _ = fmt.Fprintln(writer, colors.Muted(provider.Provider.Slug))
-		if description := optionalString(provider.Provider.Description); description != "" {
+		if description := commandutil.OptionalString(provider.Provider.Description); description != "" {
 			_, _ = fmt.Fprintln(writer, description)
 		}
 	}
@@ -189,7 +190,7 @@ func renderIntegrationTools(writer io.Writer, features terminal.Features, server
 	_, _ = fmt.Fprintln(writer, colors.Accent("Tools"))
 	if len(tools) == 0 {
 		_, _ = fmt.Fprintln(writer, "(no tools)")
-		return renderTips(writer, features, tips)
+		return commandutil.RenderTips(writer, features, tips)
 	}
 
 	table := output.Table{
@@ -201,13 +202,13 @@ func renderIntegrationTools(writer io.Writer, features terminal.Features, server
 		if tool == nil {
 			continue
 		}
-		table.Rows = append(table.Rows, []string{tool.Name, firstNonEmpty(tool.Title, tool.Name), tool.Description})
+		table.Rows = append(table.Rows, []string{tool.Name, commandutil.FirstNonEmpty(tool.Title, tool.Name), tool.Description})
 	}
 	if err := table.Render(writer); err != nil {
 		return err
 	}
 
-	return renderTips(writer, features, tips)
+	return commandutil.RenderTips(writer, features, tips)
 }
 
 func resolveIntegrationToolInput(application *app.App, data string) (map[string]any, string, error) {
@@ -333,7 +334,7 @@ func formatIntegrationInputValidationError(features terminal.Features, tool *mcp
 	colors := terminal.NewColorizer(features)
 	lines := []string{
 		colors.Warning("Input validation failed"),
-		fmt.Sprintf("Tool: %s", colors.Bold(firstNonEmpty(tool.Title, tool.Name))),
+		fmt.Sprintf("Tool: %s", colors.Bold(commandutil.FirstNonEmpty(tool.Title, tool.Name))),
 		fmt.Sprintf("Key: %s", tool.Name),
 		"",
 		colors.Accent("Why"),
@@ -420,7 +421,7 @@ func formatMCPToolResultError(features terminal.Features, server *consumerapi.Ma
 	lines := []string{
 		colors.Warning("Tool call failed"),
 		fmt.Sprintf("Integration: %s", colors.Bold(integrationTitle(server))),
-		fmt.Sprintf("Tool: %s", colors.Bold(firstNonEmpty(tool.Title, tool.Name))),
+		fmt.Sprintf("Tool: %s", colors.Bold(commandutil.FirstNonEmpty(tool.Title, tool.Name))),
 	}
 
 	message := ""

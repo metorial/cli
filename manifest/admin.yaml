@@ -207,6 +207,9 @@ commands:
   - path: [skills, agents]
     resource: skills.agents
 
+  - path: [skills, files]
+    resource: skills.files
+
   - path: [skills, participants]
     resource: skills.participants
 
@@ -411,6 +414,8 @@ commands:
 
   - path: [integrations, instances]
     resource: integrations.instances
+    slateKeys:
+      create-session-template: integrations_instances_create_template
 
   - path: [integrations, setup-sessions]
     resource: integrations.setupSessions
@@ -420,6 +425,7 @@ commands:
 
   - path: [api-keys]
     resource: apiKeys
+    slateExclude: [update, revoke]
 
   - path: [outposts]
     resource: outposts

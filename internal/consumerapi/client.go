@@ -1,16 +1,14 @@
 package consumerapi
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
 
+	"github.com/metorial/cli/internal/apiclient"
 	"github.com/metorial/cli/internal/config"
-	"github.com/metorial/cli/internal/fetch"
 	metorial "github.com/metorial/metorial-go/v1"
 )
 
@@ -37,7 +35,7 @@ func (c *Client) GetProfile() (*Profile, error) {
 
 func (c *Client) ListProviderGroups(options ListOptions) (*ProviderGroupList, error) {
 	result := &ProviderGroupList{}
-	return result, c.do(http.MethodGet, "/consumer/providers/groups"+listQuery(options, nil), nil, result)
+	return result, c.do(http.MethodGet, "/consumer/providers/groups"+apiclient.ListQuery(options, nil), nil, result)
 }
 
 func (c *Client) ListProviders(options ListOptions, search string, providerGroupID string) (*ProviderList, error) {
@@ -50,12 +48,12 @@ func (c *Client) ListProviders(options ListOptions, search string, providerGroup
 	}
 
 	result := &ProviderList{}
-	return result, c.do(http.MethodGet, "/consumer/providers"+listQuery(options, extra), nil, result)
+	return result, c.do(http.MethodGet, "/consumer/providers"+apiclient.ListQuery(options, extra), nil, result)
 }
 
 func (c *Client) GetProvider(catalogItemID string) (*Provider, error) {
 	result := &Provider{}
-	return result, c.do(http.MethodGet, "/consumer/providers/"+pathSegment(catalogItemID), nil, result)
+	return result, c.do(http.MethodGet, "/consumer/providers/"+apiclient.PathSegment(catalogItemID), nil, result)
 }
 
 func (c *Client) RequestAccess(catalogItemID string, message string) (*AccessRequest, error) {
@@ -65,7 +63,7 @@ func (c *Client) RequestAccess(catalogItemID string, message string) (*AccessReq
 	}
 
 	result := &AccessRequest{}
-	return result, c.do(http.MethodPost, "/consumer/providers/"+pathSegment(catalogItemID)+"/request-access", body, result)
+	return result, c.do(http.MethodPost, "/consumer/providers/"+apiclient.PathSegment(catalogItemID)+"/request-access", body, result)
 }
 
 func (c *Client) StartSetup(catalogItemID string, authMethodID string) (*SetupSession, error) {
@@ -75,18 +73,18 @@ func (c *Client) StartSetup(catalogItemID string, authMethodID string) (*SetupSe
 	}
 
 	result := &SetupSession{}
-	return result, c.do(http.MethodPost, "/consumer/providers/"+pathSegment(catalogItemID)+"/setup", body, result)
+	return result, c.do(http.MethodPost, "/consumer/providers/"+apiclient.PathSegment(catalogItemID)+"/setup", body, result)
 }
 
 func (c *Client) GetSetup(catalogItemID string, setupSessionID string) (*SetupSession, error) {
 	result := &SetupSession{}
-	target := "/consumer/providers/" + pathSegment(catalogItemID) + "/setup/" + pathSegment(setupSessionID)
+	target := "/consumer/providers/" + apiclient.PathSegment(catalogItemID) + "/setup/" + apiclient.PathSegment(setupSessionID)
 	return result, c.do(http.MethodGet, target, nil, result)
 }
 
 func (c *Client) Deploy(catalogItemID string, input DeployInput) (*MagicMcpServer, error) {
 	result := &MagicMcpServer{}
-	return result, c.do(http.MethodPost, "/consumer/providers/"+pathSegment(catalogItemID)+"/deploy", input, result)
+	return result, c.do(http.MethodPost, "/consumer/providers/"+apiclient.PathSegment(catalogItemID)+"/deploy", input, result)
 }
 
 func (c *Client) Reconnect(catalogItemID string, magicMcpServerID string, setupSessionID string) (*MagicMcpServer, error) {
@@ -96,12 +94,12 @@ func (c *Client) Reconnect(catalogItemID string, magicMcpServerID string, setupS
 	}
 
 	result := &MagicMcpServer{}
-	return result, c.do(http.MethodPost, "/consumer/providers/"+pathSegment(catalogItemID)+"/reconnect", body, result)
+	return result, c.do(http.MethodPost, "/consumer/providers/"+apiclient.PathSegment(catalogItemID)+"/reconnect", body, result)
 }
 
 func (c *Client) GetProviderSpecification(specificationID string) (*ProviderSpecification, error) {
 	result := &ProviderSpecification{}
-	return result, c.do(http.MethodGet, "/provider-specifications/"+pathSegment(specificationID), nil, result)
+	return result, c.do(http.MethodGet, "/provider-specifications/"+apiclient.PathSegment(specificationID), nil, result)
 }
 
 func (c *Client) ListMagicMcpServers(options ListOptions, search string, providerTemplateID string) (*MagicMcpServerList, error) {
@@ -115,22 +113,22 @@ func (c *Client) ListMagicMcpServers(options ListOptions, search string, provide
 	}
 
 	result := &MagicMcpServerList{}
-	return result, c.do(http.MethodGet, "/magic-mcp-servers"+listQuery(options, extra), nil, result)
+	return result, c.do(http.MethodGet, "/magic-mcp-servers"+apiclient.ListQuery(options, extra), nil, result)
 }
 
 func (c *Client) GetMagicMcpServer(magicMcpServerID string) (*MagicMcpServer, error) {
 	result := &MagicMcpServer{}
-	return result, c.do(http.MethodGet, "/magic-mcp-servers/"+pathSegment(magicMcpServerID), nil, result)
+	return result, c.do(http.MethodGet, "/magic-mcp-servers/"+apiclient.PathSegment(magicMcpServerID), nil, result)
 }
 
 func (c *Client) UpdateMagicMcpServer(magicMcpServerID string, input UpdateMagicMcpServerInput) (*MagicMcpServer, error) {
 	result := &MagicMcpServer{}
-	return result, c.do(http.MethodPatch, "/magic-mcp-servers/"+pathSegment(magicMcpServerID), input, result)
+	return result, c.do(http.MethodPatch, "/magic-mcp-servers/"+apiclient.PathSegment(magicMcpServerID), input, result)
 }
 
 func (c *Client) DeleteMagicMcpServer(magicMcpServerID string) (*MagicMcpServer, error) {
 	result := &MagicMcpServer{}
-	return result, c.do(http.MethodDelete, "/magic-mcp-servers/"+pathSegment(magicMcpServerID), nil, result)
+	return result, c.do(http.MethodDelete, "/magic-mcp-servers/"+apiclient.PathSegment(magicMcpServerID), nil, result)
 }
 
 func (c *Client) ListMagicMcpTokens(options ListOptions) (*MagicMcpTokenList, error) {
@@ -138,7 +136,7 @@ func (c *Client) ListMagicMcpTokens(options ListOptions) (*MagicMcpTokenList, er
 	extra.Set("status", "active")
 
 	result := &MagicMcpTokenList{}
-	return result, c.do(http.MethodGet, "/magic-mcp-tokens"+listQuery(options, extra), nil, result)
+	return result, c.do(http.MethodGet, "/magic-mcp-tokens"+apiclient.ListQuery(options, extra), nil, result)
 }
 
 func (c *Client) CreateMagicMcpToken(input CreateMagicMcpTokenInput) (*MagicMcpToken, error) {
@@ -148,63 +146,11 @@ func (c *Client) CreateMagicMcpToken(input CreateMagicMcpTokenInput) (*MagicMcpT
 
 func (c *Client) DeleteMagicMcpToken(magicMcpTokenID string) (*MagicMcpToken, error) {
 	result := &MagicMcpToken{}
-	return result, c.do(http.MethodDelete, "/magic-mcp-tokens/"+pathSegment(magicMcpTokenID), nil, result)
+	return result, c.do(http.MethodDelete, "/magic-mcp-tokens/"+apiclient.PathSegment(magicMcpTokenID), nil, result)
 }
 
 func (c *Client) do(method string, target string, body any, output any) error {
-	var payload []byte
-	if body != nil {
-		encoded, err := json.Marshal(body)
-		if err != nil {
-			return fmt.Errorf("metorial: failed to encode request body: %w", err)
-		}
-		payload = encoded
-	}
-
-	headers := map[string]string{}
-	if payload != nil {
-		headers["Content-Type"] = "application/json"
-	}
-
-	response, err := fetch.Do(c.runtime, fetch.Request{
-		Method:  method,
-		Target:  target,
-		Headers: headers,
-		Body:    payload,
-	})
-	if err != nil {
-		return describeError(target, err)
-	}
-	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return describeError(target, responseError(response))
-	}
-
-	if output == nil || len(response.Body) == 0 {
-		return nil
-	}
-	if err := json.Unmarshal(response.Body, output); err != nil {
-		return fmt.Errorf("metorial: failed to decode response from %s: %w", target, err)
-	}
-
-	return nil
-}
-
-func responseError(response *fetch.Response) *metorial.Error {
-	apiErr := &metorial.Error{StatusCode: response.StatusCode}
-
-	body := struct {
-		Code    string `json:"code"`
-		Message string `json:"message"`
-	}{}
-	if json.Unmarshal(response.Body, &body) == nil {
-		apiErr.Code = body.Code
-		apiErr.Message = strings.TrimSpace(body.Message)
-	}
-	if apiErr.Message == "" {
-		apiErr.Message = http.StatusText(response.StatusCode)
-	}
-
-	return apiErr
+	return apiclient.Client{Runtime: c.runtime, Describe: describeError}.Do(method, target, body, output)
 }
 
 func describeError(target string, err error) error {
@@ -225,35 +171,4 @@ func describeError(target string, err error) error {
 	}
 
 	return err
-}
-
-func listQuery(options ListOptions, extra url.Values) string {
-	values := url.Values{}
-	for key, items := range extra {
-		for _, item := range items {
-			values.Add(key, item)
-		}
-	}
-
-	if options.Limit > 0 {
-		values.Set("limit", strconv.FormatFloat(options.Limit, 'f', -1, 64))
-	}
-	if after := strings.TrimSpace(options.After); after != "" {
-		values.Set("after", after)
-	}
-	if before := strings.TrimSpace(options.Before); before != "" {
-		values.Set("before", before)
-	}
-	if cursor := strings.TrimSpace(options.Cursor); cursor != "" {
-		values.Set("cursor", cursor)
-	}
-
-	if len(values) == 0 {
-		return ""
-	}
-	return "?" + values.Encode()
-}
-
-func pathSegment(value string) string {
-	return url.PathEscape(strings.TrimSpace(value))
 }

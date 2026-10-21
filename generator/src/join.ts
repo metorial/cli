@@ -35,6 +35,12 @@ export type MappedOperation = {
   args: MappedArg[];
   flags: MappedFlag[];
   sdkMapping: string;
+  source: {
+    query?: IntrospectedType;
+    body?: IntrospectedType;
+    confidential: boolean;
+    instanceScoped: boolean;
+  };
 };
 
 export type MappedResource = {
@@ -46,6 +52,8 @@ export type MappedResource = {
   aliases: string[];
   operations: MappedOperation[];
   shortcuts: { path: string[]; method: string }[];
+  slateKeys: Record<string, string>;
+  slateExclude: string[];
   children: MappedResource[];
 };
 
@@ -81,6 +89,8 @@ export let joinManifest = (input: {
           aliases: entry.aliases || [],
           operations: [],
           shortcuts: [],
+          slateKeys: {},
+          slateExclude: [],
           children: []
         }
       });
@@ -146,6 +156,8 @@ export let joinManifest = (input: {
           path: shortcut.path,
           method: camelToKebab(shortcut.method)
         })),
+        slateKeys: entry.slateKeys || {},
+        slateExclude: entry.slateExclude || [],
         children: []
       }
     });
@@ -316,7 +328,15 @@ let mapOperation = (input: {
     long: input.endpoint.description || input.endpoint.name,
     args,
     flags,
-    sdkMapping: input.endpoint.sdkPath
+    sdkMapping: input.endpoint.sdkPath,
+    source: {
+      query: queryType,
+      body: bodyType,
+      confidential: input.endpoint.confidential === true,
+      instanceScoped: input.endpoint.allPaths.some(item =>
+        item.sdkPath.startsWith('management.instance.')
+      )
+    }
   };
 };
 

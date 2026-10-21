@@ -1,4 +1,4 @@
-import type { MappedArg, MappedFlag, MappedOperation, MappedResource } from './join';
+import type { MappedArg, MappedFlag, MappedOperation, MappedResource } from '../join';
 
 let flagTypeName: Record<MappedFlag['type'], string> = {
   string: 'resourcecmd.FlagString',

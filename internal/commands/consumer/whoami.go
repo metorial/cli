@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/metorial/cli/internal/commandutil"
 	"github.com/metorial/cli/internal/consumerapi"
 	"github.com/metorial/cli/internal/terminal"
 	"github.com/spf13/cobra"
@@ -40,10 +41,10 @@ func newWhoamiCommand(env commandEnv) *cobra.Command {
 			if runtime.Profile != nil {
 				result.PortalID = runtime.Profile.PortalID
 				result.PortalName = runtime.Profile.PortalName
-				result.InstanceID = firstNonEmpty(runtime.Profile.InstanceID, result.InstanceID)
+				result.InstanceID = commandutil.FirstNonEmpty(runtime.Profile.InstanceID, result.InstanceID)
 			}
 
-			return env.write(command, result, func(writer io.Writer, features terminal.Features) error {
+			return env.ctx.Write(command, result, func(writer io.Writer, features terminal.Features) error {
 				return renderWhoami(writer, features, result)
 			})
 		},
@@ -54,9 +55,9 @@ func renderWhoami(writer io.Writer, features terminal.Features, result whoamiRes
 	colors := terminal.NewColorizer(features)
 	profile := result.Profile
 
-	renderTitle(writer, features, firstNonEmpty(profile.Name, profile.Email, profile.ID), profile.Email)
+	commandutil.RenderTitle(writer, features, commandutil.FirstNonEmpty(profile.Name, profile.Email, profile.ID), profile.Email)
 	_, _ = fmt.Fprintf(writer, "%s %s\n", colors.Muted("Consumer:"), profile.ID)
-	if portal := firstNonEmpty(result.PortalName, result.PortalID); portal != "" {
+	if portal := commandutil.FirstNonEmpty(result.PortalName, result.PortalID); portal != "" {
 		_, _ = fmt.Fprintf(writer, "%s %s\n", colors.Muted("Portal:  "), portal)
 	}
 	if result.InstanceID != "" {
@@ -79,5 +80,5 @@ func renderWhoami(writer io.Writer, features terminal.Features, result whoamiRes
 		_, _ = fmt.Fprintf(writer, "  %s\n", line)
 	}
 
-	return renderTips(writer, features, []string{"metorial catalog list", "metorial list"})
+	return commandutil.RenderTips(writer, features, []string{"metorial catalog list", "metorial list"})
 }
