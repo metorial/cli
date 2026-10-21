@@ -44,6 +44,8 @@ type FlagSpec struct {
 	Required  bool
 	Repeated  bool
 	Shorthand string
+	// A nullable string flag sends JSON null when given the literal "null".
+	Nullable bool
 }
 
 type OperationSpec struct {

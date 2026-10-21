@@ -24,6 +24,7 @@ export type MappedFlag = {
   usage: string;
   required: boolean;
   repeated: boolean;
+  nullable: boolean;
 };
 
 export type MappedOperation = {
@@ -278,7 +279,8 @@ let mapOperation = (input: {
       target: `query.${key}`,
       usage: schema.description || key,
       required: override?.required ?? false,
-      repeated: flagType === 'string-slice'
+      repeated: flagType === 'string-slice',
+      nullable: false
     });
   }
 
@@ -305,7 +307,8 @@ let mapOperation = (input: {
       target: `body.${key}`,
       usage: schema.description || key,
       required: override?.required ?? !schema.optional,
-      repeated: flagType === 'string-slice'
+      repeated: flagType === 'string-slice',
+      nullable: flagType === 'string' && schema.nullable
     });
 
     if (flagType === 'json') {
@@ -315,7 +318,8 @@ let mapOperation = (input: {
         target: `body.${key}`,
         usage: `Read ${key} JSON from a file`,
         required: false,
-        repeated: false
+        repeated: false,
+        nullable: false
       });
     }
   }

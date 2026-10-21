@@ -105,6 +105,6 @@ let emitArg = (arg: MappedArg) =>
   `{Name: ${goString(arg.name)}, Target: ${goString(arg.target)}, Required: ${arg.required}, Description: ${goString(arg.description)}}`;
 
 let emitFlag = (flag: MappedFlag) =>
-  `{Name: ${goString(flag.name)}, Type: ${flagTypeName[flag.type]}, Target: ${goString(flag.target)}, Usage: ${goString(flag.usage)}, Required: ${flag.required}, Repeated: ${flag.repeated}}`;
+  `{Name: ${goString(flag.name)}, Type: ${flagTypeName[flag.type]}, Target: ${goString(flag.target)}, Usage: ${goString(flag.usage)}, Required: ${flag.required}, Repeated: ${flag.repeated}${flag.nullable ? ', Nullable: true' : ''}}`;
 
 let goString = (value: string) => JSON.stringify(value || '');
