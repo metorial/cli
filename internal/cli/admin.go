@@ -9,6 +9,7 @@ import (
 	fetchcmd "github.com/metorial/cli/internal/commands/fetch"
 	filescmd "github.com/metorial/cli/internal/commands/files"
 	instancecmd "github.com/metorial/cli/internal/commands/instance"
+	onboardingcmd "github.com/metorial/cli/internal/commands/onboarding"
 	resourcescmd "github.com/metorial/cli/internal/commands/resources"
 	sandboxcmd "github.com/metorial/cli/internal/commands/sandbox"
 	skillscmd "github.com/metorial/cli/internal/commands/skills"
@@ -42,6 +43,8 @@ func newAdminRoot(application *app.App) (*cobra.Command, error) {
 		command.AddCommand(authcmd.NewCommand(ctx))
 		command.AddCommand(authcmd.NewLoginCommand(ctx))
 		command.AddCommand(authcmd.NewLogoutCommand(ctx))
+		command.AddCommand(onboardingcmd.NewSignupCommand(ctx))
+		command.AddCommand(onboardingcmd.NewClaimCommand(ctx))
 		command.AddCommand(instancecmd.NewCommand(ctx))
 		command.AddCommand(examplecmd.NewCommand(ctx))
 		command.AddCommand(completioncmd.NewCommand(command.OutOrStdout()))

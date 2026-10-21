@@ -180,7 +180,7 @@ func TestBuildResourceBodyMergesExplicitJSONAndFlags(t *testing.T) {
 		t.Fatalf("Set(locked-provider-version-id) error = %v", err)
 	}
 
-	body, err := buildResourceBody(command, resource, operation, []string{"prov_123", "Production"})
+	body, err := buildResourceBody(command, resource, operation, []string{"prov_123", "Production"}, "")
 	if err != nil {
 		t.Fatalf("buildResourceBody() error = %v", err)
 	}
@@ -196,6 +196,121 @@ func TestBuildResourceBodyMergesExplicitJSONAndFlags(t *testing.T) {
 	}
 	if body["name"] != "Production" {
 		t.Fatalf("name = %#v", body["name"])
+	}
+}
+
+func sampleAPIKeyCreateOperation() resourcecmd.OperationSpec {
+	return resourcecmd.OperationSpec{
+		Name:   resourcecmd.OperationCreate,
+		Method: "POST",
+		Path:   "/organization/api-keys",
+		Short:  "Create API key",
+		Flags: []resourcecmd.FlagSpec{
+			{Name: "type", Type: resourcecmd.FlagString, Target: "body.type", Usage: "type"},
+			{Name: "instance-id", Type: resourcecmd.FlagString, Target: "body.instance_id", Usage: "instance_id"},
+			{Name: "name", Type: resourcecmd.FlagString, Target: "body.name", Usage: "name", Required: true},
+		},
+	}
+}
+
+func buildAPIKeyCreateBody(t *testing.T, flags map[string]string, resolvedInstanceID string) (map[string]any, error) {
+	t.Helper()
+
+	resource := resourcecmd.ResourceSpec{Plural: "api-keys", Singular: "api-keys"}
+	operation := sampleAPIKeyCreateOperation()
+
+	command, err := newPublicResourceAction(&app.App{}, &rootOptionsView{}, resource, operation)
+	if err != nil {
+		t.Fatalf("newPublicResourceAction() error = %v", err)
+	}
+
+	for name, value := range flags {
+		if err := command.Flags().Set(name, value); err != nil {
+			t.Fatalf("Set(%s) error = %v", name, err)
+		}
+	}
+
+	return buildResourceBody(command, resource, operation, nil, resolvedInstanceID)
+}
+
+func TestBuildResourceBodyDefaultsAPIKeyCreateToSecretKeyForResolvedInstance(t *testing.T) {
+	t.Parallel()
+
+	body, err := buildAPIKeyCreateBody(t, map[string]string{"name": "CI"}, "ins_123")
+	if err != nil {
+		t.Fatalf("buildResourceBody() error = %v", err)
+	}
+
+	if body["type"] != "instance_access_token_secret" {
+		t.Fatalf("type = %#v", body["type"])
+	}
+	if body["instance_id"] != "ins_123" {
+		t.Fatalf("instance_id = %#v", body["instance_id"])
+	}
+	if body["name"] != "CI" {
+		t.Fatalf("name = %#v", body["name"])
+	}
+}
+
+func TestBuildResourceBodyPreservesExplicitAPIKeyTypeAndInstance(t *testing.T) {
+	t.Parallel()
+
+	body, err := buildAPIKeyCreateBody(t, map[string]string{
+		"name":        "Browser",
+		"type":        "instance_access_token_publishable",
+		"instance-id": "ins_explicit",
+	}, "ins_resolved")
+	if err != nil {
+		t.Fatalf("buildResourceBody() error = %v", err)
+	}
+
+	if body["type"] != "instance_access_token_publishable" {
+		t.Fatalf("type = %#v", body["type"])
+	}
+	if body["instance_id"] != "ins_explicit" {
+		t.Fatalf("instance_id = %#v", body["instance_id"])
+	}
+}
+
+func TestBuildResourceBodyDoesNotOverwriteExplicitAPIKeyBodyValues(t *testing.T) {
+	t.Parallel()
+
+	body, err := buildAPIKeyCreateBody(t, map[string]string{
+		"body": `{"type":"instance_access_token_publishable","instance_id":"ins_body"}`,
+	}, "ins_resolved")
+	if err != nil {
+		t.Fatalf("buildResourceBody() error = %v", err)
+	}
+
+	if body["type"] != "instance_access_token_publishable" {
+		t.Fatalf("type = %#v", body["type"])
+	}
+	if body["instance_id"] != "ins_body" {
+		t.Fatalf("instance_id = %#v", body["instance_id"])
+	}
+}
+
+func TestBuildResourceBodyRequiresInstanceForAPIKeyCreate(t *testing.T) {
+	t.Parallel()
+
+	_, err := buildAPIKeyCreateBody(t, map[string]string{"name": "CI"}, "")
+	if err == nil || !strings.Contains(err.Error(), "an instance is required") {
+		t.Fatalf("buildResourceBody() error = %v", err)
+	}
+	if !strings.Contains(err.Error(), "--instance") {
+		t.Fatalf("buildResourceBody() error = %v", err)
+	}
+}
+
+func TestBuildResourceBodyRejectsUnsupportedAPIKeyType(t *testing.T) {
+	t.Parallel()
+
+	_, err := buildAPIKeyCreateBody(t, map[string]string{
+		"name": "CI",
+		"type": "organization_management_token",
+	}, "ins_123")
+	if err == nil || !strings.Contains(err.Error(), "--type must be instance_access_token_secret or instance_access_token_publishable") {
+		t.Fatalf("buildResourceBody() error = %v", err)
 	}
 }
 
