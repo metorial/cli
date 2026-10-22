@@ -163,6 +163,7 @@ commands:
   - path: [magic-mcp]
     group: true
     short: Magic MCP
+    long: Magic MCP servers are stable MCP entrypoints backed by a session template. Group servers, combine them behind routed endpoints, and manage the tokens that authorize access to them.
 
   - path: [magic-mcp, servers]
     resource: magicMcpServers
@@ -263,6 +264,7 @@ commands:
   - path: [sandbox]
     group: true
     short: Sandboxes
+    long: Sandboxes are isolated machines that boot from an image and can mount disks. Create and operate machines, run commands on them, build images from a Dockerfile, and manage disks, regions, and machine sizes.
 
   - path: [sandbox, machines]
     resource: sandbox.machines
@@ -320,6 +322,7 @@ commands:
   - path: [chat]
     group: true
     short: Chat
+    long: Chat links providers such as Slack and Microsoft Teams to your instance. Manage chat connections and chat instances, and read their workspaces and events.
 
   - path: [chat, connections]
     resource: chat.connections
@@ -356,6 +359,7 @@ commands:
   - path: [network]
     group: true
     short: Network Access
+    long: Network access controls how integrations and sandbox machines reach the network. Read integration enclaves and the internet gateway, and manage firewalls, their assignments, and reusable network policies.
 
   - path: [network, enclaves]
     resource: integrationEnclaves
@@ -375,6 +379,7 @@ commands:
   - path: [monitoring]
     group: true
     short: Monitoring
+    long: Monitoring tracks automated checks on your instance. Read monitors and ProtoGuard prompt-injection settings, and review and resolve alerts for detected prompt-injection or schema-change events.
 
   - path: [monitoring, monitors]
     resource: monitors

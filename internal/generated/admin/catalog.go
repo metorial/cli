@@ -2670,7 +2670,7 @@ func Catalog() []resourcecmd.ResourceSpec {
 			Plural:     "magic-mcp",
 			Singular:   "magic-mcp",
 			Short:      "Magic MCP",
-			Long:       "",
+			Long:       "Magic MCP servers are stable MCP entrypoints backed by a session template. Group servers, combine them behind routed endpoints, and manage the tokens that authorize access to them.",
 			Operations: []resourcecmd.OperationSpec{},
 			Children: []resourcecmd.ResourceSpec{
 				{
@@ -4660,7 +4660,7 @@ func Catalog() []resourcecmd.ResourceSpec {
 			Plural:     "sandbox",
 			Singular:   "sandbox",
 			Short:      "Sandboxes",
-			Long:       "",
+			Long:       "Sandboxes are isolated machines that boot from an image and can mount disks. Create and operate machines, run commands on them, build images from a Dockerfile, and manage disks, regions, and machine sizes.",
 			Operations: []resourcecmd.OperationSpec{},
 			Children: []resourcecmd.ResourceSpec{
 				{
@@ -5646,7 +5646,7 @@ func Catalog() []resourcecmd.ResourceSpec {
 			Plural:     "chat",
 			Singular:   "chat",
 			Short:      "Chat",
-			Long:       "",
+			Long:       "Chat links providers such as Slack and Microsoft Teams to your instance. Manage chat connections and chat instances, and read their workspaces and events.",
 			Operations: []resourcecmd.OperationSpec{},
 			Children: []resourcecmd.ResourceSpec{
 				{
@@ -6302,7 +6302,7 @@ func Catalog() []resourcecmd.ResourceSpec {
 			Plural:     "network",
 			Singular:   "network",
 			Short:      "Network Access",
-			Long:       "",
+			Long:       "Network access controls how integrations and sandbox machines reach the network. Read integration enclaves and the internet gateway, and manage firewalls, their assignments, and reusable network policies.",
 			Operations: []resourcecmd.OperationSpec{},
 			Children: []resourcecmd.ResourceSpec{
 				{
@@ -6619,7 +6619,7 @@ func Catalog() []resourcecmd.ResourceSpec {
 			Plural:     "monitoring",
 			Singular:   "monitoring",
 			Short:      "Monitoring",
-			Long:       "",
+			Long:       "Monitoring tracks automated checks on your instance. Read monitors and ProtoGuard prompt-injection settings, and review and resolve alerts for detected prompt-injection or schema-change events.",
 			Operations: []resourcecmd.OperationSpec{},
 			Children: []resourcecmd.ResourceSpec{
 				{
