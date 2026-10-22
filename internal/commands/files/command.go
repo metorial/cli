@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/metorial/cli/internal/commandutil"
+	"github.com/metorial/cli/internal/fileupload"
 	"github.com/metorial/cli/internal/output"
 	"github.com/metorial/cli/internal/resourcecmd"
 	"github.com/spf13/cobra"
@@ -30,7 +31,7 @@ func Attach(root *cobra.Command, ctx commandutil.Context) error {
 }
 
 func newUploadCommand(ctx commandutil.Context) *cobra.Command {
-	options := uploadOptions{}
+	options := fileupload.Options{}
 	var name string
 
 	command := &cobra.Command{
@@ -77,7 +78,7 @@ Examples:
 			}
 			defer cleanup()
 
-			response, uploadErr := newUploader(runtime).upload(command.Context(), source, options)
+			response, uploadErr := fileupload.New(runtime).Upload(command.Context(), source, options)
 			if response != nil {
 				writer := command.OutOrStdout()
 				if uploadErr != nil {
@@ -106,36 +107,31 @@ Examples:
 
 // prepareSource resolves the local path to a single file to upload, zipping
 // directories into a temporary archive that cleanup removes.
-func prepareSource(local, name string, stderr io.Writer) (uploadSource, func(), error) {
+func prepareSource(local, name string, stderr io.Writer) (fileupload.Source, func(), error) {
 	noop := func() {}
 
 	absolute, err := filepath.Abs(local)
 	if err != nil {
-		return uploadSource{}, noop, fmt.Errorf("metorial: %w", err)
+		return fileupload.Source{}, noop, fmt.Errorf("metorial: %w", err)
 	}
 	info, err := os.Stat(absolute)
 	if err != nil {
-		return uploadSource{}, noop, fmt.Errorf("metorial: %w", err)
+		return fileupload.Source{}, noop, fmt.Errorf("metorial: %w", err)
 	}
 
 	if !info.IsDir() {
 		if !info.Mode().IsRegular() {
-			return uploadSource{}, noop, fmt.Errorf("metorial: %s is not a regular file", local)
+			return fileupload.Source{}, noop, fmt.Errorf("metorial: %s is not a regular file", local)
 		}
 		if name == "" {
 			name = filepath.Base(absolute)
 		}
-		return uploadSource{
-			Path:        absolute,
-			Name:        name,
-			ContentType: contentTypeFor(name),
-			Size:        info.Size(),
-		}, noop, nil
+		return fileupload.FileSource(absolute, name, fileupload.ContentTypeFor(name), info.Size()), noop, nil
 	}
 
 	archive, err := os.CreateTemp("", "metorial-upload-*.zip")
 	if err != nil {
-		return uploadSource{}, noop, fmt.Errorf("metorial: %w", err)
+		return fileupload.Source{}, noop, fmt.Errorf("metorial: %w", err)
 	}
 	cleanup := func() { _ = os.Remove(archive.Name()) }
 
@@ -145,20 +141,20 @@ func prepareSource(local, name string, stderr io.Writer) (uploadSource, func(), 
 	}
 	if err != nil {
 		cleanup()
-		return uploadSource{}, noop, err
+		return fileupload.Source{}, noop, err
 	}
 	for _, skipped := range result.Skipped {
 		fmt.Fprintf(stderr, "metorial: skipping %s: not a regular file\n", skipped)
 	}
 	if result.Files == 0 {
 		cleanup()
-		return uploadSource{}, noop, fmt.Errorf("metorial: %s has no files to upload", local)
+		return fileupload.Source{}, noop, fmt.Errorf("metorial: %s has no files to upload", local)
 	}
 
 	archiveInfo, err := os.Stat(archive.Name())
 	if err != nil {
 		cleanup()
-		return uploadSource{}, noop, fmt.Errorf("metorial: %w", err)
+		return fileupload.Source{}, noop, fmt.Errorf("metorial: %w", err)
 	}
 
 	if name == "" {
@@ -170,10 +166,5 @@ func prepareSource(local, name string, stderr io.Writer) (uploadSource, func(), 
 	}
 	fmt.Fprintf(stderr, "metorial: zipped %d %s from %s (%s)\n", result.Files, noun, local, commandutil.HumanBytes(archiveInfo.Size()))
 
-	return uploadSource{
-		Path:        archive.Name(),
-		Name:        name,
-		ContentType: "application/zip",
-		Size:        archiveInfo.Size(),
-	}, cleanup, nil
+	return fileupload.FileSource(archive.Name(), name, "application/zip", archiveInfo.Size()), cleanup, nil
 }

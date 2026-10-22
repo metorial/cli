@@ -5,6 +5,7 @@ import (
 	"io"
 	"strings"
 
+	"github.com/metorial/cli/internal/commandutil"
 	"github.com/metorial/cli/internal/consumerapi"
 	"github.com/metorial/cli/internal/output"
 	"github.com/metorial/cli/internal/terminal"
@@ -29,7 +30,7 @@ func newCatalogCommands(env commandEnv) []*cobra.Command {
 			return err
 		}
 
-		search := strings.TrimSpace(optionalArg(args, 0))
+		search := strings.TrimSpace(commandutil.OptionalArg(args, 0))
 		result, err := client.ListProviders(pagination.list(), search, groupID)
 		if err != nil {
 			return err
@@ -42,7 +43,7 @@ func newCatalogCommands(env commandEnv) []*cobra.Command {
 				Name:         item.Name,
 				Type:         catalogTypeLabel(item),
 				Availability: availabilityLabel(item),
-				Description:  optionalString(item.Description),
+				Description:  commandutil.OptionalString(item.Description),
 			})
 		}
 
@@ -57,14 +58,14 @@ func newCatalogCommands(env commandEnv) []*cobra.Command {
 
 		base := command.CommandPath()
 		if search != "" {
-			base += " " + shellQuote(search)
+			base += " " + commandutil.ShellQuote(search)
 		}
 		if groupID != "" {
-			base += " --group " + shellQuote(groupID)
+			base += " --group " + commandutil.ShellQuote(groupID)
 		}
 		tips = append(tips, paginationTips(base, pagination, firstID, lastID, result.Pagination)...)
 
-		return env.write(command, map[string]any{
+		return env.ctx.Write(command, map[string]any{
 			"items":      result.Items,
 			"rows":       rows,
 			"pagination": result.Pagination,
@@ -125,17 +126,17 @@ func newCatalogGroupsCommand(env commandEnv) *cobra.Command {
 				tips = append(tips, fmt.Sprintf("metorial catalog list --group %s", result.Items[0].ID))
 			}
 
-			return env.write(command, map[string]any{
+			return env.ctx.Write(command, map[string]any{
 				"items":      result.Items,
 				"pagination": result.Pagination,
 				"tips":       tips,
 			}, func(writer io.Writer, features terminal.Features) error {
 				colors := terminal.NewColorizer(features)
-				renderTitle(writer, features, "Catalog Groups", "Groups your portal uses to organize integrations.")
+				commandutil.RenderTitle(writer, features, "Catalog Groups", "Groups your portal uses to organize integrations.")
 
 				if len(result.Items) == 0 {
 					_, _ = fmt.Fprintln(writer, "(no groups)")
-					return renderTips(writer, features, tips)
+					return commandutil.RenderTips(writer, features, tips)
 				}
 
 				table := output.Table{
@@ -146,13 +147,13 @@ func newCatalogGroupsCommand(env commandEnv) *cobra.Command {
 				for _, group := range result.Items {
 					table.Rows = append(table.Rows, []string{
 						colors.Bold(group.Name) + "\n" + colors.Muted(group.ID) + "\n",
-						optionalString(group.Description),
+						commandutil.OptionalString(group.Description),
 					})
 				}
 				if err := table.Render(writer); err != nil {
 					return err
 				}
-				return renderTips(writer, features, tips)
+				return commandutil.RenderTips(writer, features, tips)
 			})
 		},
 	}
@@ -199,7 +200,7 @@ func newCatalogGetCommand(env commandEnv) *cobra.Command {
 				tips = append(tips, fmt.Sprintf("metorial reconnect %s %s", item.ID, owned[0].ID))
 			}
 
-			return env.write(command, map[string]any{
+			return env.ctx.Write(command, map[string]any{
 				"item":         item,
 				"tools":        tools,
 				"integrations": owned,
@@ -240,7 +241,7 @@ func newRequestAccessCommand(env commandEnv) *cobra.Command {
 				return err
 			}
 
-			return env.write(command, map[string]any{
+			return env.ctx.Write(command, map[string]any{
 				"item":           item,
 				"access_request": request,
 			}, func(writer io.Writer, features terminal.Features) error {
@@ -266,11 +267,11 @@ func newRequestAccessCommand(env commandEnv) *cobra.Command {
 
 func renderCatalogList(writer io.Writer, features terminal.Features, rows []catalogListRow, tips []string) error {
 	colors := terminal.NewColorizer(features)
-	renderTitle(writer, features, "Integration Catalog", "Integrations your portal makes available to you.")
+	commandutil.RenderTitle(writer, features, "Integration Catalog", "Integrations your portal makes available to you.")
 
 	if len(rows) == 0 {
 		_, _ = fmt.Fprintln(writer, "(no integrations)")
-		return renderTips(writer, features, tips)
+		return commandutil.RenderTips(writer, features, tips)
 	}
 
 	table := output.Table{
@@ -293,12 +294,12 @@ func renderCatalogList(writer io.Writer, features terminal.Features, rows []cata
 		return err
 	}
 
-	return renderTips(writer, features, tips)
+	return commandutil.RenderTips(writer, features, tips)
 }
 
 func renderCatalogDetail(writer io.Writer, features terminal.Features, item *consumerapi.Provider, tools []consumerapi.SpecificationTool, owned []consumerapi.MagicMcpServer, tips []string) error {
 	colors := terminal.NewColorizer(features)
-	renderTitle(writer, features, item.Name, item.ID)
+	commandutil.RenderTitle(writer, features, item.Name, item.ID)
 
 	items := []output.DataListItem{
 		{Label: "Type", Value: catalogTypeLabel(*item)},
@@ -311,7 +312,7 @@ func renderCatalogDetail(writer io.Writer, features terminal.Features, item *con
 		}
 		items = append(items, output.DataListItem{Label: "Provider", Value: provider})
 	}
-	if description := optionalString(item.Description); description != "" {
+	if description := commandutil.OptionalString(item.Description); description != "" {
 		items = append(items, output.DataListItem{Label: "Description", Value: description})
 	}
 	if err := output.RenderDataList(writer, items); err != nil {
@@ -355,7 +356,7 @@ func renderCatalogDetail(writer io.Writer, features terminal.Features, item *con
 		}
 	}
 
-	if readme := optionalString(item.Readme); readme != "" {
+	if readme := commandutil.OptionalString(item.Readme); readme != "" {
 		_, _ = fmt.Fprintln(writer)
 		_, _ = fmt.Fprintln(writer, colors.Accent("Readme"))
 		_, _ = fmt.Fprintln(writer, readme)
@@ -370,21 +371,21 @@ func renderCatalogDetail(writer io.Writer, features terminal.Features, item *con
 			MaxWidth: features.Width,
 		}
 		for _, tool := range tools {
-			table.Rows = append(table.Rows, []string{colors.Bold(tool.Key), tool.Name, optionalString(tool.Description)})
+			table.Rows = append(table.Rows, []string{colors.Bold(tool.Key), tool.Name, commandutil.OptionalString(tool.Description)})
 		}
 		if err := table.Render(writer); err != nil {
 			return err
 		}
 	}
 
-	return renderTips(writer, features, tips)
+	return commandutil.RenderTips(writer, features, tips)
 }
 
 func catalogSpecificationID(item *consumerapi.Provider) string {
 	if item.Provider == nil || item.Provider.CurrentVersion == nil {
 		return ""
 	}
-	return optionalString(item.Provider.CurrentVersion.SpecificationID)
+	return commandutil.OptionalString(item.Provider.CurrentVersion.SpecificationID)
 }
 
 func catalogTypeLabel(item consumerapi.Provider) string {

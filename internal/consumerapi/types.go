@@ -1,6 +1,10 @@
 package consumerapi
 
-import "time"
+import (
+	"time"
+
+	"github.com/metorial/cli/internal/apiclient"
+)
 
 const (
 	ProviderTypeProviderTemplate = "provider_template"
@@ -16,17 +20,10 @@ const (
 	SetupStatusDeleted    = "deleted"
 )
 
-type Pagination struct {
-	HasMoreBefore bool `json:"has_more_before"`
-	HasMoreAfter  bool `json:"has_more_after"`
-}
-
-type ListOptions struct {
-	Limit  float64
-	After  string
-	Before string
-	Cursor string
-}
+type (
+	Pagination  = apiclient.Pagination
+	ListOptions = apiclient.ListOptions
+)
 
 type Profile struct {
 	Object     string                   `json:"object"`

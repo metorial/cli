@@ -18,6 +18,7 @@ export type Endpoint = {
   bodyId?: string | null;
   outputId: string;
   controllerId: string;
+  confidential?: boolean;
 };
 
 export type Controller = {

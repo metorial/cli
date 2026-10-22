@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/metorial/cli/internal/browser"
+	"github.com/metorial/cli/internal/commandutil"
 	"github.com/metorial/cli/internal/consumerapi"
 	"github.com/metorial/cli/internal/output"
 	"github.com/metorial/cli/internal/terminal"
@@ -43,7 +44,7 @@ func newSetupCommand(env commandEnv) *cobra.Command {
 				return err
 			}
 
-			item, err := resolveSetupItem(env, client, optionalArg(args, 0))
+			item, err := resolveSetupItem(env, client, commandutil.OptionalArg(args, 0))
 			if err != nil {
 				return err
 			}
@@ -96,7 +97,7 @@ func newReconnectCommand(env commandEnv) *cobra.Command {
 				return err
 			}
 
-			server, err := resolveReconnectServer(client, item, optionalArg(args, 1))
+			server, err := resolveReconnectServer(client, item, commandutil.OptionalArg(args, 1))
 			if err != nil {
 				return err
 			}
@@ -201,7 +202,7 @@ func runSetupSession(env commandEnv, command *cobra.Command, client *consumerapi
 		return session, nil
 	}
 
-	structured, err := env.structured()
+	structured, err := env.ctx.Structured()
 	if err != nil {
 		return nil, err
 	}
@@ -298,7 +299,7 @@ func waitForSetupSession(writer io.Writer, features terminal.Features, client *c
 func writeSetupResult(env commandEnv, command *cobra.Command, title string, item *consumerapi.Provider, session *consumerapi.SetupSession, server *consumerapi.MagicMcpServer) error {
 	tips := append([]string{fmt.Sprintf("metorial get %s", integrationIdentifier(server))}, integrationTips(server, true)...)
 
-	return env.write(command, map[string]any{
+	return env.ctx.Write(command, map[string]any{
 		"item":          item,
 		"setup_session": session,
 		"integration":   server,
@@ -307,7 +308,7 @@ func writeSetupResult(env commandEnv, command *cobra.Command, title string, item
 		colors := terminal.NewColorizer(features)
 		_, _ = fmt.Fprintln(writer, colors.Success(title))
 		_, _ = fmt.Fprintln(writer)
-		renderTitle(writer, features, integrationTitle(server), server.ID)
+		commandutil.RenderTitle(writer, features, integrationTitle(server), server.ID)
 
 		if err := output.RenderDataList(writer, []output.DataListItem{
 			{Label: "Status", Value: server.Status},
@@ -318,6 +319,6 @@ func writeSetupResult(env commandEnv, command *cobra.Command, title string, item
 		if err := renderServerEndpoints(writer, features, server); err != nil {
 			return err
 		}
-		return renderTips(writer, features, tips)
+		return commandutil.RenderTips(writer, features, tips)
 	})
 }

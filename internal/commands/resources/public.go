@@ -373,7 +373,11 @@ func buildResourceBody(command *cobra.Command, resource resourcecmd.ResourceSpec
 			if err != nil {
 				return nil, err
 			}
-			body[key] = value
+			if flag.Nullable && value == "null" {
+				body[key] = nil
+			} else {
+				body[key] = value
+			}
 		case resourcecmd.FlagBool:
 			value, err := command.Flags().GetBool(flag.Name)
 			if err != nil {

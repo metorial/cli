@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/metorial/cli/internal/commandutil"
 	"github.com/metorial/cli/internal/consumerapi"
 	"github.com/metorial/cli/internal/output"
 	"github.com/metorial/cli/internal/terminal"
@@ -48,7 +49,7 @@ func newTokensListCommand(env commandEnv) *cobra.Command {
 			for _, token := range result.Items {
 				rows = append(rows, tokenListRow{
 					ID:          token.ID,
-					Name:        optionalString(token.Name),
+					Name:        commandutil.OptionalString(token.Name),
 					Integration: tokenIntegrationLabel(token),
 					CreatedAt:   token.CreatedAt.Format("2006-01-02 15:04"),
 				})
@@ -56,7 +57,7 @@ func newTokensListCommand(env commandEnv) *cobra.Command {
 
 			tips := []string{}
 			if len(rows) > 0 {
-				tips = append(tips, fmt.Sprintf("metorial tokens revoke %s", shellQuote(rows[0].ID)))
+				tips = append(tips, fmt.Sprintf("metorial tokens revoke %s", commandutil.ShellQuote(rows[0].ID)))
 			}
 			firstID, lastID := "", ""
 			if len(rows) > 0 {
@@ -64,7 +65,7 @@ func newTokensListCommand(env commandEnv) *cobra.Command {
 			}
 			tips = append(tips, paginationTips("metorial tokens list", options, firstID, lastID, result.Pagination)...)
 
-			return env.write(command, map[string]any{
+			return env.ctx.Write(command, map[string]any{
 				"items":      result.Items,
 				"pagination": result.Pagination,
 				"tips":       tips,
@@ -94,7 +95,7 @@ func newTokensRevokeCommand(env commandEnv) *cobra.Command {
 				return err
 			}
 
-			return env.write(command, token, func(writer io.Writer, features terminal.Features) error {
+			return env.ctx.Write(command, token, func(writer io.Writer, features terminal.Features) error {
 				colors := terminal.NewColorizer(features)
 				_, _ = fmt.Fprintf(writer, "%s %s\n", colors.Success("Revoked token"), token.ID)
 				return nil
@@ -107,7 +108,7 @@ func tokenIntegrationLabel(token consumerapi.MagicMcpToken) string {
 	if token.Server == nil {
 		return ""
 	}
-	return firstNonEmpty(optionalString(token.Server.Name), token.Server.ID)
+	return commandutil.FirstNonEmpty(commandutil.OptionalString(token.Server.Name), token.Server.ID)
 }
 
 func renderTokenList(writer io.Writer, features terminal.Features, rows []tokenListRow, tips []string) error {
@@ -134,5 +135,5 @@ func renderTokenList(writer io.Writer, features terminal.Features, rows []tokenL
 		return err
 	}
 
-	return renderTips(writer, features, tips)
+	return commandutil.RenderTips(writer, features, tips)
 }
