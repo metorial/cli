@@ -13,6 +13,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/metorial/cli/internal/commandutil"
 	"github.com/metorial/cli/internal/consumerapi"
 	"github.com/metorial/cli/internal/output"
 	"github.com/metorial/cli/internal/terminal"
@@ -182,10 +183,10 @@ func (a fileClientAdapter) detect() clientDetection {
 	return clientDetection{Installed: false, Usable: false, Location: path}
 }
 func (a fileClientAdapter) buildInstallPlan(server remoteServerDefinition) (clientInstallPlan, error) {
-	containerKey := firstNonEmpty(a.topLevelKey, "mcpServers")
-	typeField := firstNonEmpty(a.fieldNames.Type, "type")
-	urlField := firstNonEmpty(a.fieldNames.URL, "url")
-	headersField := firstNonEmpty(a.fieldNames.Headers, "headers")
+	containerKey := commandutil.FirstNonEmpty(a.topLevelKey, "mcpServers")
+	typeField := commandutil.FirstNonEmpty(a.fieldNames.Type, "type")
+	urlField := commandutil.FirstNonEmpty(a.fieldNames.URL, "url")
+	headersField := commandutil.FirstNonEmpty(a.fieldNames.Headers, "headers")
 	includeTypeField := true
 	if !a.includeTypeField {
 		includeTypeField = false
@@ -249,7 +250,7 @@ func newInstallCommands(env commandEnv) []*cobra.Command {
 				"metorial install custom <integration-id>",
 			}
 
-			return env.write(command, map[string]any{
+			return env.ctx.Write(command, map[string]any{
 				"items": rows,
 				"tips":  tips,
 			}, func(writer io.Writer, features terminal.Features) error {
@@ -304,7 +305,7 @@ func newInstallCommands(env commandEnv) []*cobra.Command {
 				result.File = &typed
 			}
 
-			return env.write(command, result, func(writer io.Writer, features terminal.Features) error {
+			return env.ctx.Write(command, result, func(writer io.Writer, features terminal.Features) error {
 				return renderIntegrationInstallResult(writer, features, result)
 			})
 		},
@@ -329,7 +330,7 @@ func newInstallCommands(env commandEnv) []*cobra.Command {
 				Token:       token.Secret,
 			}
 
-			return env.write(command, result, func(writer io.Writer, features terminal.Features) error {
+			return env.ctx.Write(command, result, func(writer io.Writer, features terminal.Features) error {
 				return renderCustomInstallResult(writer, features, result)
 			})
 		},
@@ -409,7 +410,7 @@ func init() {
 	addAdapter(newFileAdapter("amazon-bedrock", "Amazon Bedrock", "json", filepath.Join(paths.homeDir, "Amazon Bedrock Client", "mcp_config.json")))
 	addAdapter(newFileAdapter("amazonq", "Amazon Q", "json", filepath.Join(paths.homeDir, ".aws", "amazonq", "mcp.json")))
 	addAdapter(newFileAdapter("tome", "Tome", "json", filepath.Join(paths.homeDir, ".tome", "mcp_config.json")))
-	addAdapter(newFileAdapter("librechat", "LibreChat", "yaml", filepath.Join(firstNonEmpty(os.Getenv("LIBRECHAT_CONFIG_DIR"), paths.homeDir), "LibreChat", "librechat.yaml")))
+	addAdapter(newFileAdapter("librechat", "LibreChat", "yaml", filepath.Join(commandutil.FirstNonEmpty(os.Getenv("LIBRECHAT_CONFIG_DIR"), paths.homeDir), "LibreChat", "librechat.yaml")))
 
 	windsurf := newFileAdapter("windsurf", "Windsurf", "json", filepath.Join(paths.homeDir, ".codeium", "windsurf", "mcp_config.json"))
 	windsurf.fieldNames.URL = "serverUrl"
@@ -453,7 +454,7 @@ func currentPlatformPaths() platformClientPaths {
 	case "windows":
 		return platformClientPaths{
 			homeDir:    homeDir,
-			baseDir:    firstNonEmpty(os.Getenv("APPDATA"), filepath.Join(homeDir, "AppData", "Roaming")),
+			baseDir:    commandutil.FirstNonEmpty(os.Getenv("APPDATA"), filepath.Join(homeDir, "AppData", "Roaming")),
 			vscodePath: filepath.Join("Code", "User", "globalStorage"),
 		}
 	case "darwin":
@@ -465,7 +466,7 @@ func currentPlatformPaths() platformClientPaths {
 	default:
 		return platformClientPaths{
 			homeDir:    homeDir,
-			baseDir:    firstNonEmpty(os.Getenv("XDG_CONFIG_HOME"), filepath.Join(homeDir, ".config")),
+			baseDir:    commandutil.FirstNonEmpty(os.Getenv("XDG_CONFIG_HOME"), filepath.Join(homeDir, ".config")),
 			vscodePath: filepath.Join("Code", "User", "globalStorage"),
 		}
 	}
@@ -784,7 +785,7 @@ func renderIntegrationClientList(writer io.Writer, features terminal.Features, r
 	if err := table.Render(writer); err != nil {
 		return err
 	}
-	return renderTips(writer, features, tips)
+	return commandutil.RenderTips(writer, features, tips)
 }
 
 func renderIntegrationInstallResult(writer io.Writer, features terminal.Features, result integrationInstallResult) error {

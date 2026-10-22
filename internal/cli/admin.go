@@ -12,6 +12,7 @@ import (
 	onboardingcmd "github.com/metorial/cli/internal/commands/onboarding"
 	resourcescmd "github.com/metorial/cli/internal/commands/resources"
 	sandboxcmd "github.com/metorial/cli/internal/commands/sandbox"
+	skillscmd "github.com/metorial/cli/internal/commands/skills"
 	systemcmd "github.com/metorial/cli/internal/commands/system"
 	"github.com/metorial/cli/internal/commandutil"
 	"github.com/metorial/cli/internal/config"
@@ -57,6 +58,9 @@ func newAdminRoot(application *app.App) (*cobra.Command, error) {
 	}
 	if !commandutil.BrowserShellEnabled() {
 		if err := filescmd.Attach(command, ctx); err != nil {
+			return nil, err
+		}
+		if err := skillscmd.Attach(command, ctx); err != nil {
 			return nil, err
 		}
 	}

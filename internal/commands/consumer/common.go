@@ -36,27 +36,6 @@ func (e commandEnv) client() (*consumerapi.Client, error) {
 	return consumerapi.New(runtime)
 }
 
-func (e commandEnv) structured() (bool, error) {
-	format, err := output.ParseFormat(e.format())
-	if err != nil {
-		return false, err
-	}
-
-	return format == output.FormatStructured, nil
-}
-
-func (e commandEnv) write(command *cobra.Command, value any, render func(io.Writer, terminal.Features) error) error {
-	structured, err := e.structured()
-	if err != nil {
-		return err
-	}
-	if !structured {
-		return commandutil.WriteValue(command.OutOrStdout(), e.app().StdoutFeatures(), e.format(), value)
-	}
-
-	return render(command.OutOrStdout(), e.app().StdoutFeatures())
-}
-
 type paginationOptions struct {
 	Limit  float64
 	After  string
@@ -91,38 +70,12 @@ func paginationTips(base string, options paginationOptions, firstID, lastID stri
 
 	tips := []string{}
 	if pagination.HasMoreAfter {
-		tips = append(tips, fmt.Sprintf("%s --after %s", base, shellQuote(lastID)))
+		tips = append(tips, fmt.Sprintf("%s --after %s", base, commandutil.ShellQuote(lastID)))
 	}
 	if pagination.HasMoreBefore {
-		tips = append(tips, fmt.Sprintf("%s --before %s", base, shellQuote(firstID)))
+		tips = append(tips, fmt.Sprintf("%s --before %s", base, commandutil.ShellQuote(firstID)))
 	}
 	return tips
-}
-
-func renderTips(writer io.Writer, features terminal.Features, tips []string) error {
-	if len(tips) == 0 {
-		return nil
-	}
-
-	colors := terminal.NewColorizer(features)
-	_, _ = fmt.Fprintln(writer)
-	_, _ = fmt.Fprintln(writer, colors.Notice("Tips"))
-	for _, tip := range tips {
-		if strings.TrimSpace(tip) == "" {
-			continue
-		}
-		_, _ = fmt.Fprintf(writer, "  %s\n", tip)
-	}
-	return nil
-}
-
-func renderTitle(writer io.Writer, features terminal.Features, title, subtitle string) {
-	colors := terminal.NewColorizer(features)
-	_, _ = fmt.Fprintln(writer, colors.Bold(title))
-	if strings.TrimSpace(subtitle) != "" {
-		_, _ = fmt.Fprintln(writer, colors.Muted(subtitle))
-	}
-	_, _ = fmt.Fprintln(writer)
 }
 
 func renderServerEndpoints(writer io.Writer, features terminal.Features, server *consumerapi.MagicMcpServer) error {
@@ -163,7 +116,7 @@ func integrationIdentifier(server *consumerapi.MagicMcpServer) string {
 }
 
 func integrationTitle(server *consumerapi.MagicMcpServer) string {
-	return firstNonEmpty(optionalString(server.Name), integrationIdentifier(server))
+	return commandutil.FirstNonEmpty(commandutil.OptionalString(server.Name), integrationIdentifier(server))
 }
 
 func integrationTips(server *consumerapi.MagicMcpServer, includeInstall bool) []string {
@@ -180,38 +133,10 @@ func integrationTips(server *consumerapi.MagicMcpServer, includeInstall bool) []
 	return tips
 }
 
-func optionalArg(args []string, index int) string {
-	if index < 0 || index >= len(args) {
-		return ""
-	}
-	return args[index]
-}
-
-func optionalString(value *string) string {
-	if value == nil {
-		return ""
-	}
-	return strings.TrimSpace(*value)
-}
-
 func stringPtrIfSet(value string) *string {
 	value = strings.TrimSpace(value)
 	if value == "" {
 		return nil
 	}
 	return &value
-}
-
-func firstNonEmpty(values ...string) string {
-	return commandutil.FirstNonEmpty(values...)
-}
-
-func shellQuote(value string) string {
-	if value == "" {
-		return "''"
-	}
-	if !strings.ContainsAny(value, " \t\n'\"\\") {
-		return value
-	}
-	return "'" + strings.ReplaceAll(value, "'", `'"'"'`) + "'"
 }

@@ -139,6 +139,30 @@ metorial-admin files upload ./logo.png --purpose organization_image
 metorial-admin files upload ./build-context --purpose sandbox_image_build_context
 ```
 
+## Skills
+
+Both CLIs can edit Metorial skills. `metorial` works with the skills you can access in your portal; `metorial-admin skills` works with every skill in the instance.
+
+```bash
+# Work on a skill as a local folder
+metorial skills list
+metorial skills pull release-notes ./release-notes
+metorial skills status ./release-notes
+metorial skills push ./release-notes            # --dry-run to preview, --force to overwrite remote changes
+
+# Edit single files
+metorial skills files ls release-notes
+metorial skills files cat release-notes /SKILL.md
+metorial skills files put release-notes /references/api.md -f ./api.md
+metorial skills files rm release-notes /references/old.md
+```
+
+`pull`, `push` and `status` work the same way in both CLIs. For single files, `metorial-admin` has the generated `skills files list/get/put/delete/move/batch` commands instead of `ls/cat/put -f/rm`.
+
+`pull` records the version of every file in `.metorial/skill.json`. Before each batch of up to 100 changes, `push` checks that none of the files it touches changed remotely, and every change also carries the recorded version as a precondition, so edits someone made in the dashboard in the meantime are not overwritten. Batches are not atomic: if the server rejects a change, the changes before it stay applied and are recorded locally, so `status` shows what is left. `push` never deletes `/SKILL.md`. Markdown files become collaboratively editable documents; other files are uploaded as-is.
+
+These paths are never pushed or pulled: `.git`, `.metorial`, `.DS_Store`, `node_modules`, `.idea`, `.vscode`, `.env`, `.env.*`, `*.swp`, `*~` and `.metorial-*` temporary files. Add up to 30 more patterns to a `.metorialignore` file in the skill folder, one per line; a pattern without `/` matches any file or folder name, one with `/` (including a leading `/`, as in `/drafts`) is matched from the skill root, and a matching folder ignores everything under it (`path.Match` syntax, no `**` or negation; a trailing `/` is ignored). A file with more patterns makes `pull`, `push` and `status` fail until you trim it. `.metorialignore` itself is synced like any other file, so everyone who pulls the skill gets the same rules; you can create it in an empty folder before the first `pull`.
+
 ## Help
 
 ```bash

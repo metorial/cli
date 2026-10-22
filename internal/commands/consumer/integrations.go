@@ -5,6 +5,7 @@ import (
 	"io"
 	"strings"
 
+	"github.com/metorial/cli/internal/commandutil"
 	"github.com/metorial/cli/internal/consumerapi"
 	"github.com/metorial/cli/internal/output"
 	"github.com/metorial/cli/internal/terminal"
@@ -42,7 +43,7 @@ func newListCommand(env commandEnv) *cobra.Command {
 				return err
 			}
 
-			search := strings.TrimSpace(optionalArg(args, 0))
+			search := strings.TrimSpace(commandutil.OptionalArg(args, 0))
 			result, err := client.ListMagicMcpServers(pagination.list(), search, "")
 			if err != nil {
 				return err
@@ -55,8 +56,8 @@ func newListCommand(env commandEnv) *cobra.Command {
 					ID:          server.ID,
 					Alias:       integrationIdentifier(server),
 					Status:      server.Status,
-					Name:        optionalString(server.Name),
-					Description: optionalString(server.Description),
+					Name:        commandutil.OptionalString(server.Name),
+					Description: commandutil.OptionalString(server.Description),
 					EndpointURL: primaryServerURL(server),
 				})
 			}
@@ -71,12 +72,12 @@ func newListCommand(env commandEnv) *cobra.Command {
 			}
 			base := "metorial list"
 			if search != "" {
-				base += " " + shellQuote(search)
+				base += " " + commandutil.ShellQuote(search)
 			}
 			tips = append(tips, paginationTips(base, pagination, firstID, lastID, result.Pagination)...)
 			tips = append(tips, "metorial catalog list")
 
-			return env.write(command, map[string]any{
+			return env.ctx.Write(command, map[string]any{
 				"items":      result.Items,
 				"rows":       rows,
 				"pagination": result.Pagination,
@@ -108,7 +109,7 @@ func newGetCommand(env commandEnv) *cobra.Command {
 
 			tips := integrationTips(server, true)
 
-			return env.write(command, map[string]any{
+			return env.ctx.Write(command, map[string]any{
 				"integration": server,
 				"tips":        tips,
 			}, func(writer io.Writer, features terminal.Features) error {
@@ -155,7 +156,7 @@ func newUpdateCommand(env commandEnv) *cobra.Command {
 
 			tips := []string{fmt.Sprintf("metorial get %s", integrationIdentifier(updated))}
 
-			return env.write(command, map[string]any{
+			return env.ctx.Write(command, map[string]any{
 				"integration": updated,
 				"tips":        tips,
 			}, func(writer io.Writer, features terminal.Features) error {
@@ -204,7 +205,7 @@ func newRemoveCommand(env commandEnv) *cobra.Command {
 				return err
 			}
 
-			return env.write(command, map[string]any{
+			return env.ctx.Write(command, map[string]any{
 				"integration": deleted,
 			}, func(writer io.Writer, features terminal.Features) error {
 				colors := terminal.NewColorizer(features)
@@ -221,11 +222,11 @@ func newRemoveCommand(env commandEnv) *cobra.Command {
 
 func renderIntegrationList(writer io.Writer, features terminal.Features, rows []integrationListRow, tips []string) error {
 	colors := terminal.NewColorizer(features)
-	renderTitle(writer, features, "Your Integrations", "")
+	commandutil.RenderTitle(writer, features, "Your Integrations", "")
 
 	if len(rows) == 0 {
 		_, _ = fmt.Fprintln(writer, "(no integrations)")
-		return renderTips(writer, features, tips)
+		return commandutil.RenderTips(writer, features, tips)
 	}
 
 	table := output.Table{
@@ -249,17 +250,17 @@ func renderIntegrationList(writer io.Writer, features terminal.Features, rows []
 		return err
 	}
 
-	return renderTips(writer, features, tips)
+	return commandutil.RenderTips(writer, features, tips)
 }
 
 func renderIntegrationDetail(writer io.Writer, features terminal.Features, server *consumerapi.MagicMcpServer, tips []string) error {
 	colors := terminal.NewColorizer(features)
-	renderTitle(writer, features, integrationTitle(server), server.ID)
+	commandutil.RenderTitle(writer, features, integrationTitle(server), server.ID)
 
 	items := []output.DataListItem{
 		{Label: "Status", Value: server.Status},
 	}
-	if description := optionalString(server.Description); description != "" {
+	if description := commandutil.OptionalString(server.Description); description != "" {
 		items = append(items, output.DataListItem{Label: "Description", Value: description})
 	}
 	if err := output.RenderDataList(writer, items); err != nil {
@@ -281,7 +282,7 @@ func renderIntegrationDetail(writer io.Writer, features terminal.Features, serve
 		for _, provider := range server.Providers {
 			name := provider.Name
 			if provider.Provider != nil {
-				name = firstNonEmpty(provider.Provider.Name, provider.Name)
+				name = commandutil.FirstNonEmpty(provider.Provider.Name, provider.Name)
 			}
 			table.Rows = append(table.Rows, []string{name, provider.Status})
 		}
@@ -290,5 +291,5 @@ func renderIntegrationDetail(writer io.Writer, features terminal.Features, serve
 		}
 	}
 
-	return renderTips(writer, features, tips)
+	return commandutil.RenderTips(writer, features, tips)
 }

@@ -199,6 +199,55 @@ func TestBuildResourceBodyMergesExplicitJSONAndFlags(t *testing.T) {
 	}
 }
 
+func TestBuildResourceBodySendsNullForNullableStringFlags(t *testing.T) {
+	t.Parallel()
+
+	resource := resourcecmd.ResourceSpec{Plural: "files", Singular: "files"}
+	operation := resourcecmd.OperationSpec{
+		Name:   resourcecmd.OperationName("put"),
+		Method: "PUT",
+		Path:   "/skills/{skillId}/files",
+		Short:  "Write a file",
+		Flags: []resourcecmd.FlagSpec{
+			{Name: "if-match", Type: resourcecmd.FlagString, Target: "body.if_match", Usage: "if_match", Nullable: true},
+			{Name: "content", Type: resourcecmd.FlagString, Target: "body.content", Usage: "content"},
+		},
+	}
+
+	build := func(ifMatch string) map[string]any {
+		t.Helper()
+
+		command, err := newPublicResourceAction(&app.App{}, &rootOptionsView{}, resource, operation)
+		if err != nil {
+			t.Fatalf("newPublicResourceAction() error = %v", err)
+		}
+		if err := command.Flags().Set("if-match", ifMatch); err != nil {
+			t.Fatalf("Set(if-match) error = %v", err)
+		}
+		if err := command.Flags().Set("content", "null"); err != nil {
+			t.Fatalf("Set(content) error = %v", err)
+		}
+
+		body, err := buildResourceBody(command, resource, operation, nil, "")
+		if err != nil {
+			t.Fatalf("buildResourceBody() error = %v", err)
+		}
+		return body
+	}
+
+	body := build("null")
+	if value, ok := body["if_match"]; !ok || value != nil {
+		t.Fatalf("if_match = %#v, present = %v, want JSON null", value, ok)
+	}
+	if body["content"] != "null" {
+		t.Fatalf("content = %#v, want the string \"null\" for a non-nullable flag", body["content"])
+	}
+
+	if body := build("etag_123"); body["if_match"] != "etag_123" {
+		t.Fatalf("if_match = %#v, want etag_123", body["if_match"])
+	}
+}
+
 func sampleAPIKeyCreateOperation() resourcecmd.OperationSpec {
 	return resourcecmd.OperationSpec{
 		Name:   resourcecmd.OperationCreate,

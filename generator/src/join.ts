@@ -24,6 +24,7 @@ export type MappedFlag = {
   usage: string;
   required: boolean;
   repeated: boolean;
+  nullable: boolean;
 };
 
 export type MappedOperation = {
@@ -35,6 +36,12 @@ export type MappedOperation = {
   args: MappedArg[];
   flags: MappedFlag[];
   sdkMapping: string;
+  source: {
+    query?: IntrospectedType;
+    body?: IntrospectedType;
+    confidential: boolean;
+    instanceScoped: boolean;
+  };
 };
 
 export type MappedResource = {
@@ -46,6 +53,8 @@ export type MappedResource = {
   aliases: string[];
   operations: MappedOperation[];
   shortcuts: { path: string[]; method: string }[];
+  slateKeys: Record<string, string>;
+  slateExclude: string[];
   children: MappedResource[];
 };
 
@@ -81,6 +90,8 @@ export let joinManifest = (input: {
           aliases: entry.aliases || [],
           operations: [],
           shortcuts: [],
+          slateKeys: {},
+          slateExclude: [],
           children: []
         }
       });
@@ -146,6 +157,8 @@ export let joinManifest = (input: {
           path: shortcut.path,
           method: camelToKebab(shortcut.method)
         })),
+        slateKeys: entry.slateKeys || {},
+        slateExclude: entry.slateExclude || [],
         children: []
       }
     });
@@ -266,7 +279,8 @@ let mapOperation = (input: {
       target: `query.${key}`,
       usage: schema.description || key,
       required: override?.required ?? false,
-      repeated: flagType === 'string-slice'
+      repeated: flagType === 'string-slice',
+      nullable: false
     });
   }
 
@@ -293,7 +307,8 @@ let mapOperation = (input: {
       target: `body.${key}`,
       usage: schema.description || key,
       required: override?.required ?? !schema.optional,
-      repeated: flagType === 'string-slice'
+      repeated: flagType === 'string-slice',
+      nullable: flagType === 'string' && schema.nullable
     });
 
     if (flagType === 'json') {
@@ -303,7 +318,8 @@ let mapOperation = (input: {
         target: `body.${key}`,
         usage: `Read ${key} JSON from a file`,
         required: false,
-        repeated: false
+        repeated: false,
+        nullable: false
       });
     }
   }
@@ -316,7 +332,15 @@ let mapOperation = (input: {
     long: input.endpoint.description || input.endpoint.name,
     args,
     flags,
-    sdkMapping: input.endpoint.sdkPath
+    sdkMapping: input.endpoint.sdkPath,
+    source: {
+      query: queryType,
+      body: bodyType,
+      confidential: input.endpoint.confidential === true,
+      instanceScoped: input.endpoint.allPaths.some(item =>
+        item.sdkPath.startsWith('management.instance.')
+      )
+    }
   };
 };
 

@@ -23,6 +23,8 @@ export type CommandEntry = {
   long?: string;
   args?: Record<string, Record<string, ArgOverride>>;
   shortcuts?: ShortcutEntry[];
+  slateKeys?: Record<string, string>;
+  slateExclude?: string[];
 };
 
 export type Manifest = {
