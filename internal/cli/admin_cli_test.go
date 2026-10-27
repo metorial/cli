@@ -27,6 +27,46 @@ func executeAdmin(t *testing.T, args ...string) (string, error) {
 	return stdout.String(), err
 }
 
+func TestAdminRootHelpIncludesAgentDiscovery(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("CURSOR_AGENT", "1")
+
+	rendered, err := executeAdmin(t, "--help")
+	if err != nil {
+		t.Fatalf("help error = %v", err)
+	}
+
+	for _, text := range []string{
+		"=== AGENT COMMAND DISCOVERY ===",
+		"metorial-admin --format json cli search",
+		"Every word must match",
+		"Run the selected command with --help",
+	} {
+		if !strings.Contains(rendered, text) {
+			t.Fatalf("help output missing %q:\n%s", text, rendered)
+		}
+	}
+}
+
+func TestAdminRootHelpOmitsAgentDiscoveryForPeople(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	for _, name := range []string{
+		"ANTIGRAVITY_CLI_ALIAS", "CLAUDECODE", "CLINE_ACTIVE", "CODEX_SANDBOX",
+		"CODEX_THREAD_ID", "CODEX_SANDBOX_NETWORK_DISABLED", "CODEX_CI",
+		"CURSOR_AGENT", "GEMINI_CLI", "OPENCODE",
+	} {
+		t.Setenv(name, "")
+	}
+
+	rendered, err := executeAdmin(t, "--help")
+	if err != nil {
+		t.Fatalf("help error = %v", err)
+	}
+	if strings.Contains(rendered, "=== AGENT COMMAND DISCOVERY ===") {
+		t.Fatalf("help output unexpectedly includes agent guidance:\n%s", rendered)
+	}
+}
+
 func TestAdminCLISearchListsMatchingCommands(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 

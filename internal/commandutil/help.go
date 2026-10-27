@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/metorial/cli/internal/agent"
 	"github.com/metorial/cli/internal/terminal"
 	"github.com/spf13/cobra"
 )
@@ -75,8 +76,23 @@ metorial-admin.
 }
 
 func AdminRootLongDescription() string {
+	guide := ""
+	if isAgent, _ := agent.IsAiAgent(); isAgent {
+		guide = strings.TrimSpace(`
+=== AGENT COMMAND DISCOVERY ===
+Agents: Search for commands before exploring nested help:
+  metorial-admin --format json cli search "<keywords>"
+Use a few words describing the resource and action. Every word must match a
+command name, alias, or short description. Search runs locally and returns
+matching commands ranked by relevance. If there are no matches, try fewer words.
+Run the selected command with --help for its arguments and flags.
+=== END AGENT COMMAND DISCOVERY ===
+`)
+		guide += "\n\n"
+	}
+
 	if BrowserShellEnabled() {
-		return helpColors.Bold(METORIAL_2) + "\n\n" + strings.TrimSpace(`
+		return guide + helpColors.Bold(METORIAL_2) + "\n\n" + strings.TrimSpace(`
 Welcome to the Metorial browser shell. You're signed in with your dashboard
 session.
 
@@ -86,7 +102,7 @@ with "metorial-admin cli search <query>".
 `)
 	}
 
-	return helpColors.Bold(METORIAL_2) + "\n\n" + strings.TrimSpace(`
+	return guide + helpColors.Bold(METORIAL_2) + "\n\n" + strings.TrimSpace(`
 Welcome to the Metorial Admin CLI!
 
 Start with "metorial-admin login" to sign in, "metorial-admin providers list"
