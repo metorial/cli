@@ -366,3 +366,27 @@ func TestClaimLinkFallsBackToTheStoredLink(t *testing.T) {
 		t.Fatalf("ClaimLink() = %q, want %q", got, profile.ClaimURL)
 	}
 }
+
+func TestWriteAgentInstructions(t *testing.T) {
+	var out bytes.Buffer
+	profile := unclaimedProfile()
+	writeAgentInstructions(&out, "metorial-admin", profile)
+	for _, want := range []string{"continue setup now", "final reply", claimlink.Identifier(profile.ClaimToken)} {
+		if !strings.Contains(out.String(), want) {
+			t.Fatalf("instructions missing %q:\n%s", want, out.String())
+		}
+	}
+}
+
+func TestSaveClaimEmailPersists(t *testing.T) {
+	profile := unclaimedProfile()
+	store := setupStore(t, profile)
+
+	saveClaimEmail(store, profile.ID, "ada@example.com")
+
+	reopened, _ := config.OpenStore()
+	got, ok := reopened.ProfileByID(profile.ID)
+	if !ok || got.ClaimEmail != "ada@example.com" {
+		t.Fatalf("claim email not persisted: %+v", got)
+	}
+}

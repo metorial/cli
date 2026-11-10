@@ -22,13 +22,8 @@ commands:
   - path: [providers]
     resource: providers
     include: [list, get]
-    args:
-      list:
-        search: { flag: search }
-        auth_method: { flag: auth-method }
-
-  - path: [providers, listings]
-    resource: providerListings
+    methodResources:
+      list: providerListings
 
   - path: [providers, versions]
     resource: providers.versions
@@ -481,6 +476,8 @@ commands:
     shortcuts:
       - path: [integrations, setup]
         method: create
+      - path: [integrations, setup, status]
+        method: get
 
   - path: [api-keys]
     resource: apiKeys

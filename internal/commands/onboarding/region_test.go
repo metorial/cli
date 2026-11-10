@@ -102,15 +102,15 @@ func TestDiscoverRegionsWithoutAnyRecommendation(t *testing.T) {
 	}
 }
 
-func TestDiscoverRegionsSkipsHostsWithoutAChoice(t *testing.T) {
+func TestDiscoverRegionsHandlesFailureAndSingleRegion(t *testing.T) {
 	stubRegions(t, nil, nil)
 	if choice := discoverRegions(hostURL(t)); choice != nil {
 		t.Fatalf("expected no choice when the lookup fails, got %+v", choice)
 	}
 
 	stubRegions(t, &auth.SignupRegionsResponse{Regions: testRegions[:1]}, nil)
-	if choice := discoverRegions(hostURL(t)); choice != nil {
-		t.Fatalf("expected no choice for a single region, got %+v", choice)
+	if choice := discoverRegions(hostURL(t)); choice == nil || len(choice.Options) != 1 || choice.Options[0].ID != "us1" {
+		t.Fatalf("expected the single region to be listed, got %+v", choice)
 	}
 }
 
@@ -124,7 +124,7 @@ func TestAgentInstructionsListRecommendedRegionFirst(t *testing.T) {
 		RecommendedBy: "latency",
 	}
 
-	text := choice.agentInstructions("metorial-admin")
+	text := choice.regionInstructions("metorial-admin")
 
 	if strings.Index(text, "European Union (eu1) - 35ms - recommended") > strings.Index(text, "United States (us1)") {
 		t.Fatalf("recommended region should be listed first:\n%s", text)
@@ -139,8 +139,8 @@ func TestAgentInstructionsListRecommendedRegionFirst(t *testing.T) {
 func TestAgentInstructionsWithoutRecommendationAskToPick(t *testing.T) {
 	choice := &regionChoice{Options: []regionOption{{SignupRegion: testRegions[0]}, {SignupRegion: testRegions[1]}}}
 
-	text := choice.agentInstructions("metorial-admin")
-	if !strings.Contains(text, "No region could be recommended") || !strings.Contains(text, "closest to the user") {
+	text := choice.regionInstructions("metorial-admin")
+	if !strings.Contains(text, "No region could be recommended") || !strings.Contains(text, "data residency needs") {
 		t.Fatalf("unexpected instructions:\n%s", text)
 	}
 }
@@ -166,7 +166,7 @@ func TestResolveSignupRegionPrefersTheFlag(t *testing.T) {
 	stubRegions(t, nil, nil)
 	command, ctx := signupContext(t, "CLAUDECODE")
 
-	region, err := resolveSignupRegion(command, ctx, hostURL(t), " us1 ", true)
+	region, err := resolveSignupRegion(command, ctx, hostURL(t), " us1 ")
 	if err != nil || region != "us1" {
 		t.Fatalf("region = %q, err = %v", region, err)
 	}
@@ -176,28 +176,28 @@ func TestResolveSignupRegionAgentMustChoose(t *testing.T) {
 	stubRegions(t, &auth.SignupRegionsResponse{Regions: testRegions, RecommendedRegion: "eu1"}, nil)
 	command, ctx := signupContext(t, "CURSOR_AGENT")
 
-	_, err := resolveSignupRegion(command, ctx, hostURL(t), "", true)
+	_, err := resolveSignupRegion(command, ctx, hostURL(t), "")
 	if err == nil || !strings.Contains(err.Error(), "signup --region <id>") || !strings.Contains(err.Error(), "recommended") {
 		t.Fatalf("expected region instructions, got %v", err)
 	}
 }
 
-func TestResolveSignupRegionNonInteractiveUsesRecommendation(t *testing.T) {
+func TestResolveSignupRegionNonInteractiveMustChoose(t *testing.T) {
 	stubRegions(t, &auth.SignupRegionsResponse{Regions: testRegions, RecommendedRegion: "us1"}, nil)
 	command, ctx := signupContext(t, "")
 
-	region, err := resolveSignupRegion(command, ctx, hostURL(t), "", false)
-	if err != nil || region != "us1" {
+	region, err := resolveSignupRegion(command, ctx, hostURL(t), "")
+	if err == nil || region != "" || !strings.Contains(err.Error(), "United States (us1) - recommended") {
 		t.Fatalf("region = %q, err = %v", region, err)
 	}
 }
 
-func TestResolveSignupRegionWithoutRegionsLetsTheServerDecide(t *testing.T) {
+func TestResolveSignupRegionWithoutRegionsRequiresFlag(t *testing.T) {
 	stubRegions(t, nil, nil)
 	command, ctx := signupContext(t, "CLAUDECODE")
 
-	region, err := resolveSignupRegion(command, ctx, hostURL(t), "", true)
-	if err != nil || region != "" {
+	region, err := resolveSignupRegion(command, ctx, hostURL(t), "")
+	if err == nil || region != "" || !strings.Contains(err.Error(), "--region is required") {
 		t.Fatalf("region = %q, err = %v", region, err)
 	}
 }

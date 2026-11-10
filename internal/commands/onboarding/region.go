@@ -5,15 +5,13 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"os"
 	"sort"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/metorial/cli/internal/app"
 	"github.com/metorial/cli/internal/auth"
-	"golang.org/x/term"
+	"github.com/metorial/cli/internal/config"
 )
 
 const (
@@ -59,12 +57,17 @@ var measureRegionLatency = func(traceURL string) (time.Duration, error) {
 	return best, nil
 }
 
-// Hosts without regions (self-hosted, older servers) simply have nothing to choose, so any
-// failure here means "no choice" rather than an error.
 func discoverRegions(apiHost *url.URL) *regionChoice {
 	response, err := fetchSignupRegions(apiHost)
-	if err != nil || len(response.Regions) < 2 {
-		return nil
+	if err != nil || len(response.Regions) == 0 {
+		if apiHost.Hostname() != config.DefaultAPIHost {
+			return nil
+		}
+		// Older Metorial Cloud deployments may not expose region discovery yet.
+		response = &auth.SignupRegionsResponse{Regions: []auth.SignupRegion{
+			{ID: "us1", Name: "United States", TraceURL: "https://api-us1.metorial.com/.metorial/trace-region"},
+			{ID: "eu1", Name: "European Union", TraceURL: "https://api-eu1.metorial.com/.metorial/trace-region"},
+		}}
 	}
 
 	choice := &regionChoice{}
@@ -147,10 +150,10 @@ func (c *regionChoice) label(option regionOption) string {
 	return label
 }
 
-func (c *regionChoice) agentInstructions(rootName string) string {
+func (c *regionChoice) regionInstructions(rootName string) string {
 	var builder strings.Builder
 
-	builder.WriteString("metorial: choose a region for the new organization first. Available regions:\n")
+	builder.WriteString("metorial: --region is required to create a new organization. Available regions:\n")
 	for _, option := range c.recommendedFirst() {
 		builder.WriteString("- " + c.label(option) + "\n")
 	}
@@ -167,30 +170,9 @@ func (c *regionChoice) agentInstructions(rootName string) string {
 	if c.Recommended != "" {
 		builder.WriteString("Pick the recommended region unless the user asked for a different one (for example for data residency), ")
 	} else {
-		builder.WriteString("Pick the region closest to the user, or ask them, ")
+		builder.WriteString("Choose the region that meets the user’s location or data residency needs, ")
 	}
 	builder.WriteString(fmt.Sprintf("then run `%s signup --region <id>`.", rootName))
 
 	return builder.String()
-}
-
-func stdinIsTerminal(application *app.App) bool {
-	file, ok := application.Stdin.(*os.File)
-	return ok && term.IsTerminal(int(file.Fd()))
-}
-
-func promptRegion(application *app.App, choice *regionChoice) (string, error) {
-	options := choice.recommendedFirst()
-
-	labels := make([]string, 0, len(options))
-	for _, option := range options {
-		labels = append(labels, choice.label(option))
-	}
-
-	index, err := application.PromptSelect("Where should your organization be created?", labels)
-	if err != nil {
-		return "", fmt.Errorf("metorial: region selection was cancelled. Use --region <id> to choose one")
-	}
-
-	return options[index].ID, nil
 }

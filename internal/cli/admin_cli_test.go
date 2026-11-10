@@ -3,6 +3,9 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -165,5 +168,64 @@ func TestAdminCLIProfileHintsUseAdminPath(t *testing.T) {
 
 	if !strings.Contains(rendered, "`metorial-admin cli profile set demo`") {
 		t.Fatalf("list output missing admin hint: %q", rendered)
+	}
+}
+
+func TestAdminProviderDiscoveryUsesCatalog(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("METORIAL_SKIP_UPDATE_CHECK", "1")
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/provider-listings" || r.URL.Query().Get("search") != "github" {
+			http.Error(w, "unexpected request", http.StatusBadRequest)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"items":[{"id":"plg_1","provider":{"id":"pro_1"}}]}`)
+	}))
+	defer server.Close()
+
+	output, err := executeAdmin(t, "--api-host", server.URL, "--api-key", "metorial_sk_test",
+		"--format", "json", "providers", "list", "--search", "github")
+	var result struct {
+		Items []struct {
+			Provider struct{ ID string } `json:"provider"`
+		}
+	}
+	if err != nil || json.Unmarshal([]byte(output), &result) != nil ||
+		len(result.Items) != 1 || result.Items[0].Provider.ID != "pro_1" {
+		t.Fatalf("providers list = %q, %v", output, err)
+	}
+}
+
+func TestAdminIntegrationSetupResumesByID(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("METORIAL_SKIP_UPDATE_CHECK", "1")
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodPost && r.URL.Path == "/integration-setup-sessions":
+			_, _ = io.WriteString(w, `{"id":"iss_1","status":"pending","url":"https://example.test/setup"}`)
+		case r.Method == http.MethodGet && r.URL.Path == "/integration-setup-sessions/iss_1":
+			_, _ = io.WriteString(w, `{"id":"iss_1","status":"successful","integration_instance":{"id":"ini_1"}}`)
+		default:
+			http.Error(w, "unexpected request", http.StatusBadRequest)
+		}
+	}))
+	defer server.Close()
+
+	base := []string{"--api-host", server.URL, "--api-key", "metorial_sk_test", "--format", "json", "integrations", "setup"}
+	for _, step := range []struct {
+		args   []string
+		status string
+	}{
+		{[]string{"--integration-id", "int_1", "--name", "GitHub", "--no-browser"}, "pending"},
+		{[]string{"status", "iss_1"}, "successful"},
+		{[]string{"wait", "iss_1", "--timeout", "1s"}, "successful"},
+	} {
+		output, err := executeAdmin(t, append(base, step.args...)...)
+		var result struct{ ID, Status string }
+		if err != nil || json.Unmarshal([]byte(output), &result) != nil || result.ID != "iss_1" || result.Status != step.status {
+			t.Fatalf("setup %v = %q, %v", step.args, output, err)
+		}
 	}
 }

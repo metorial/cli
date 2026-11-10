@@ -18,6 +18,7 @@ export type CommandEntry = {
   resource?: string;
   group?: boolean;
   include?: string[];
+  methodResources?: Record<string, string>;
   aliases?: string[];
   short?: string;
   long?: string;

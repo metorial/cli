@@ -1,6 +1,7 @@
 package onboarding
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
@@ -13,6 +14,8 @@ import (
 	authcmd "github.com/metorial/cli/internal/commands/auth"
 	"github.com/metorial/cli/internal/commandutil"
 	"github.com/metorial/cli/internal/config"
+	"github.com/metorial/cli/internal/fetch"
+	"github.com/metorial/cli/internal/output"
 	"github.com/metorial/cli/internal/terminal"
 	"github.com/spf13/cobra"
 )
@@ -28,8 +31,8 @@ Create a new, unclaimed Metorial organization named "<user>'s workspace" (using
 this computer's user name) and save a profile for it on this machine. The
 organization can be used right away. Open the printed claim link (or run "metorial-admin claim <email>") to attach it to a Metorial account.
 
-The organization is created in a data region. You are asked to pick one, with the closest
-region recommended. Pass --region to skip the question.
+Pass --region to choose where the organization is created. Run signup without it
+to list the available regions and the recommendation.
 `),
 		Args: cobra.NoArgs,
 		RunE: func(command *cobra.Command, args []string) error {
@@ -66,6 +69,10 @@ reminds it daily until the organization is claimed.
 }
 
 func runSignup(command *cobra.Command, ctx commandutil.Context, region string) error {
+	format, err := output.ParseFormat(ctx.Options.Format)
+	if err != nil {
+		return err
+	}
 	store, err := config.OpenStore()
 	if err != nil {
 		return err
@@ -83,14 +90,14 @@ func runSignup(command *cobra.Command, ctx commandutil.Context, region string) e
 	}
 
 	stdoutFeatures := ctx.App.StdoutFeatures()
-	isAgent, agentName := agent.IsAiAgent()
+	isAgent, _ := agent.IsAiAgent()
 
-	region, err = resolveSignupRegion(command, ctx, apiHostURL, region, isAgent)
+	region, err = resolveSignupRegion(command, ctx, apiHostURL, region)
 	if err != nil {
 		return err
 	}
 
-	spinner := terminal.NewSpinner(command.OutOrStdout(), stdoutFeatures, "Creating your organization...")
+	spinner := terminal.NewSpinner(command.ErrOrStderr(), ctx.App.StderrFeatures(), "Creating your organization...")
 	spinner.Start()
 	response, err := auth.NewClient(apiHostURL).CLISignup(workspaceName(), region)
 	spinner.Stop()
@@ -111,18 +118,30 @@ func runSignup(command *cobra.Command, ctx commandutil.Context, region string) e
 	profile.InstanceID = response.Instance.ID
 	profile.ClaimCheckedAt = &now
 
-	if isAgent {
-		if hint := detectEmailHint(agentName); hint != nil {
-			profile.ClaimEmailHint = hint.Email
-			profile.ClaimEmailHintSource = hint.Source
-		}
-	}
-
 	if err := store.UpsertProfile(*profile, true); err != nil {
 		return err
 	}
 
-	renderSignupSuccess(command.OutOrStdout(), stdoutFeatures, response, isAgent, *profile, command.Root().Name())
+	if format == output.FormatStructured {
+		renderSignupSuccess(command.OutOrStdout(), stdoutFeatures, response, isAgent, *profile, command.Root().Name())
+	} else {
+		body, err := json.Marshal(map[string]string{
+			"organization_id":   response.Organization.ID,
+			"organization_slug": response.Organization.Slug,
+			"project_id":        response.Project.ID,
+			"instance_id":       response.Instance.ID,
+			"profile_id":        profile.ID,
+			"region":            commandutil.FirstNonEmpty(response.Region, region),
+			"claim_status":      "unclaimed",
+			"claim_url":         response.Claim.URL,
+		})
+		if err != nil {
+			return err
+		}
+		if err := output.WriteResponse(command.OutOrStdout(), &fetch.Response{Body: body}, output.RenderOptions{Format: format}); err != nil {
+			return err
+		}
+	}
 
 	if browser.Supported() {
 		_ = browser.Open(response.Claim.URL)
@@ -131,29 +150,20 @@ func runSignup(command *cobra.Command, ctx commandutil.Context, region string) e
 	return nil
 }
 
-func resolveSignupRegion(command *cobra.Command, ctx commandutil.Context, apiHost *url.URL, requested string, isAgent bool) (string, error) {
+func resolveSignupRegion(command *cobra.Command, ctx commandutil.Context, apiHost *url.URL, requested string) (string, error) {
 	if requested = strings.TrimSpace(requested); requested != "" {
 		return requested, nil
 	}
 
-	features := ctx.App.StdoutFeatures()
-	interactive := !isAgent && features.IsTTY && stdinIsTerminal(ctx.App)
-
-	spinner := terminal.NewSpinner(command.OutOrStdout(), features, "Finding the closest region...")
+	spinner := terminal.NewSpinner(command.ErrOrStderr(), ctx.App.StderrFeatures(), "Finding the closest region...")
 	spinner.Start()
 	choice := discoverRegions(apiHost)
 	spinner.Stop()
 
-	switch {
-	case choice == nil:
-		return "", nil
-	case isAgent:
-		return "", errors.New(choice.agentInstructions(command.Root().Name()))
-	case interactive:
-		return promptRegion(ctx.App, choice)
-	default:
-		return choice.Recommended, nil
+	if choice == nil {
+		return "", fmt.Errorf("metorial: --region is required. Could not list regions for %s. Retry or run %s signup --region <id>", apiHost, command.Root().Name())
 	}
+	return "", errors.New(choice.regionInstructions(command.Root().Name()))
 }
 
 func runClaim(command *cobra.Command, ctx commandutil.Context, email string) error {

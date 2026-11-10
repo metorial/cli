@@ -102,12 +102,14 @@ export let joinManifest = (input: {
       throw new Error(`manifest command ${entry.path.join(' ')} is missing resource`);
     }
 
-    let wanted = normalizeSdkPath(entry.resource);
+    let defaultResource = entry.resource;
     let matches = publicEndpoints.filter(endpoint => {
       let { resource, method } = splitResourceMethod(normalizeSdkPath(endpoint.sdkPath));
+      let methodName = camelToKebab(method);
+      let wanted = normalizeSdkPath(entry.methodResources?.[methodName] ?? defaultResource);
       if (resource !== wanted) return false;
       if (!entry.include?.length) return true;
-      return entry.include.some(name => camelToKebab(name) === camelToKebab(method));
+      return entry.include.some(name => camelToKebab(name) === methodName);
     });
 
     if (matches.length === 0) {

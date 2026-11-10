@@ -29,14 +29,14 @@ func renderSignupSuccess(writer io.Writer, features terminal.Features, response 
 	_ = output.RenderBox(writer, details, boxOptions)
 	_, _ = fmt.Fprintln(writer)
 
+	if isAgent {
+		writeAgentInstructions(writer, rootName, profile)
+		return
+	}
+
 	_, _ = fmt.Fprintln(writer, colors.Notice("This organization is not claimed yet. Claim it to keep it and invite your team."))
 	_, _ = fmt.Fprintln(writer, colors.Muted("Open this link and sign in to keep it and invite your team:"))
 	_, _ = fmt.Fprintln(writer, response.Claim.URL)
-
-	if isAgent {
-		_, _ = fmt.Fprintln(writer)
-		writeAgentInstructions(writer, rootName, profile)
-	}
 }
 
 func renderClaimEmailSent(writer io.Writer, features terminal.Features, profile config.Profile, email string) {
@@ -75,18 +75,7 @@ func writeAgentInstructions(writer io.Writer, rootName string, profile config.Pr
 
 	_, _ = fmt.Fprintf(writer, "[metorial] This CLI profile uses an UNCLAIMED Metorial organization (%s).\n", orgRef)
 
-	if profile.ClaimEmail != "" {
-		_, _ = fmt.Fprintf(writer, "A claim link was emailed to %s. Ask the user to open it and sign in, or give them this link directly:\n", profile.ClaimEmail)
-		_, _ = fmt.Fprintf(writer, "%s\n", profile.ClaimLink(time.Now()))
-		_, _ = fmt.Fprintf(writer, "To send it to a different address, run `%s claim <email>`.\n", rootName)
-		return
-	}
-
-	_, _ = fmt.Fprintln(writer, "Before continuing, ask the user to claim it. Ask them for the email address they want to use with Metorial:")
-	if profile.ClaimEmailHint != "" {
-		source := commandutil.FirstNonEmpty(profile.ClaimEmailHintSource, "this machine")
-		_, _ = fmt.Fprintf(writer, "- A likely address is %s (found in %s). Do not assume it is right: confirm it with the user first.\n", profile.ClaimEmailHint, source)
-	}
-	_, _ = fmt.Fprintf(writer, "- Once the user gave you their email, run `%s claim <email>` to send them the claim link.\n", rootName)
-	_, _ = fmt.Fprintf(writer, "- If they would rather not share it, give them this link to claim the organization themselves: %s\n", profile.ClaimLink(time.Now()))
+	_, _ = fmt.Fprintln(writer, "You can continue setup now. Include the claim link in your final reply so the user can take ownership:")
+	_, _ = fmt.Fprintln(writer, profile.ClaimLink(time.Now()))
+	_, _ = fmt.Fprintf(writer, "If the user explicitly requests email delivery, run `%s claim <email>`.\n", rootName)
 }

@@ -92,6 +92,15 @@ func AddGeneratedCommands(
 		}
 	}
 
+	if providers := resourcecmd.CommandByName(root, "providers"); providers != nil {
+		providers.AddCommand(newProviderAuthCommand(ctx))
+	}
+	if integrations := resourcecmd.CommandByName(root, "integrations"); integrations != nil {
+		if setup := resourcecmd.CommandByName(integrations, "setup"); setup != nil {
+			setup.AddCommand(newIntegrationSetupWait(ctx))
+		}
+	}
+
 	return nil
 }
 
@@ -131,6 +140,8 @@ func newPublicResourceAction(
 	if strings.TrimSpace(short) == "" {
 		short = fmt.Sprintf("%s %s", operation.Name, resource.Plural)
 	}
+
+	isIntegrationSetup := operation.SDKMapping == "integrations.setupSessions.create" && operation.Name == "setup"
 
 	command := &cobra.Command{
 		Use:     use,
@@ -176,8 +187,14 @@ func newPublicResourceAction(
 				}
 			}
 
+			if isIntegrationSetup && requestErr == nil && response != nil {
+				presentIntegrationSetup(command, response)
+			}
 			return requestErr
 		},
+	}
+	if isIntegrationSetup {
+		command.Flags().Bool("no-browser", false, "Print the setup link without opening a browser")
 	}
 	commandutil.ConfigureCommand(command)
 
@@ -768,7 +785,7 @@ func readJSONFlagValue(command *cobra.Command, flag resourcecmd.FlagSpec) (any, 
 }
 
 func transformResourceResponse(response *fetch.Response, resource resourcecmd.ResourceSpec, operation resourcecmd.OperationSpec) error {
-	if response == nil || resource.Plural != "providers" {
+	if response == nil || resource.Plural != "providers" || operation.Path != "" {
 		return nil
 	}
 

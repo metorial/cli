@@ -83,9 +83,7 @@ type Profile struct {
 	OrgSlug        string     `mapstructure:"org_slug" json:"org_slug,omitempty"`
 	ClaimCheckedAt *time.Time `mapstructure:"claim_checked_at" json:"claim_checked_at,omitempty"`
 
-	ClaimEmail           string `mapstructure:"claim_email" json:"claim_email,omitempty"`
-	ClaimEmailHint       string `mapstructure:"claim_email_hint" json:"claim_email_hint,omitempty"`
-	ClaimEmailHintSource string `mapstructure:"claim_email_hint_source" json:"claim_email_hint_source,omitempty"`
+	ClaimEmail string `mapstructure:"claim_email" json:"claim_email,omitempty"`
 
 	CreatedAt  time.Time `mapstructure:"created_at" json:"created_at"`
 	UpdatedAt  time.Time `mapstructure:"updated_at" json:"updated_at"`
