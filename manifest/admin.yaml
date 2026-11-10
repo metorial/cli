@@ -272,6 +272,9 @@ commands:
   - path: [sandbox, machines, access]
     resource: sandbox.machines.access
     short: Sandbox machine access
+    args:
+      ports:
+        ports: { flag: ports, type: json }
 
   - path: [sandbox, machines, instances]
     resource: sandbox.machines.instances
@@ -322,20 +325,62 @@ commands:
   - path: [chat]
     group: true
     short: Chat
-    long: Chat links providers such as Slack and Microsoft Teams to your instance. Manage chat connections and chat instances, and read their workspaces and events.
+    long: Chat links providers such as Slack and Microsoft Teams to your instance. Manage chat connections, chat instances and their provider, read workspaces and events, and read and send messages in connected chats.
 
   - path: [chat, connections]
     resource: chat.connections
 
   - path: [chat, instances]
     resource: chat.instances
-    include: [list, get, create, update, delete]
+    include: [list, get, create, update, delete, sync]
+
+  - path: [chat, instances, provider]
+    resource: chat.instances.provider
+    short: Chat instance provider
 
   - path: [chat, workspaces]
     resource: chat.workspaces
 
   - path: [chat, events]
     resource: chat.events
+
+  - path: [chat, chats]
+    resource: chats
+
+  - path: [chat, channels]
+    resource: chats.channels
+
+  - path: [chat, channels, members]
+    resource: chats.channels.members
+
+  - path: [chat, channels, typing]
+    resource: chats.channels.typing
+    short: Chat typing indicator
+
+  - path: [chat, threads]
+    resource: chats.threads
+
+  - path: [chat, messages]
+    resource: chats.messages
+
+  - path: [chat, messages, reactions]
+    resource: chats.messages.reactions
+    args:
+      create:
+        emoji: { flag: emoji, type: string }
+
+  - path: [chat, dms]
+    resource: chats.dms
+    short: Chat direct messages
+    args:
+      open:
+        type: { flag: type, type: string }
+        user: { flag: user, type: json }
+        users: { flag: users, type: json }
+
+  - path: [chat, commands]
+    resource: chats.commands
+    short: Chat slash command responses
 
   - path: [callbacks]
     resource: callbacks
@@ -355,6 +400,15 @@ commands:
   - path: [events, listeners]
     resource: eventDestinationListeners
     include: [list, get, create, delete]
+
+  - path: [events, deliveries]
+    resource: eventDeliveries
+
+  - path: [events, delivery-attempts]
+    resource: eventDeliveryAttempts
+
+  - path: [audit-logs]
+    resource: audit_logs
 
   - path: [network]
     group: true
@@ -379,7 +433,7 @@ commands:
   - path: [monitoring]
     group: true
     short: Monitoring
-    long: Monitoring tracks automated checks on your instance. Read monitors and ProtoGuard prompt-injection settings, and review and resolve alerts for detected prompt-injection or schema-change events.
+    long: Monitoring tracks automated checks on your instance. Read monitors, and review and resolve alerts for detected prompt-injection or schema-change events.
 
   - path: [monitoring, monitors]
     resource: monitors
