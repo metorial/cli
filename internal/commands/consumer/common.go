@@ -16,7 +16,8 @@ import (
 const defaultPageLimit = 15
 
 type commandEnv struct {
-	ctx commandutil.Context
+	ctx    commandutil.Context
+	member bool
 }
 
 func (e commandEnv) app() *app.App {
@@ -33,6 +34,10 @@ func (e commandEnv) client() (*consumerapi.Client, error) {
 		return nil, err
 	}
 
+	if e.member {
+		client, _, err := consumerapi.NewMember(runtime, "")
+		return client, err
+	}
 	return consumerapi.New(runtime)
 }
 

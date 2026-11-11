@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -17,11 +18,11 @@ type magicMCPClient struct {
 	session *mcp.ClientSession
 }
 
-func connectMagicMCP(ctx context.Context, accessToken string, server *consumerapi.MagicMcpServer) (*magicMCPClient, error) {
+func connectMagicMCP(ctx context.Context, clientAuth *consumerapi.Client, server *consumerapi.MagicMcpServer) (*magicMCPClient, error) {
 	if server == nil {
 		return nil, fmt.Errorf("metorial: integration is required")
 	}
-	if strings.TrimSpace(accessToken) == "" {
+	if clientAuth.AccessToken() == "" {
 		return nil, fmt.Errorf("metorial: an access token is required to connect to an integration")
 	}
 
@@ -43,8 +44,9 @@ func connectMagicMCP(ctx context.Context, accessToken string, server *consumerap
 		DisableStandaloneSSE: true,
 		HTTPClient: &http.Client{
 			Transport: &magicMCPAuthTransport{
-				base:        http.DefaultTransport,
-				bearerToken: accessToken,
+				base:          http.DefaultTransport,
+				bearerToken:   clientAuth.AccessToken(),
+				allowedOrigin: clientAuth.MCPOrigin(),
 			},
 		},
 	}, nil)
@@ -151,11 +153,16 @@ func mcpContentToValues(contents []mcp.Content) []any {
 }
 
 type magicMCPAuthTransport struct {
-	base        http.RoundTripper
-	bearerToken string
+	base          http.RoundTripper
+	bearerToken   string
+	allowedOrigin *url.URL
 }
 
 func (t *magicMCPAuthTransport) RoundTrip(request *http.Request) (*http.Response, error) {
+	if t.allowedOrigin != nil && !isTrustedMCPOrigin(t.allowedOrigin, request.URL) {
+		return nil, fmt.Errorf("metorial: integration endpoint is outside the configured API origin")
+	}
+
 	base := t.base
 	if base == nil {
 		base = http.DefaultTransport
@@ -171,4 +178,15 @@ func (t *magicMCPAuthTransport) RoundTrip(request *http.Request) (*http.Response
 	}
 
 	return base.RoundTrip(cloned)
+}
+
+func isTrustedMCPOrigin(api, endpoint *url.URL) bool {
+	if endpoint.User != nil || !strings.EqualFold(api.Scheme, endpoint.Scheme) {
+		return false
+	}
+	if strings.EqualFold(api.Host, endpoint.Host) {
+		return true
+	}
+	return api.Scheme == "https" && endpoint.Host == "api.metorial.com" &&
+		(api.Host == "api-us1.metorial.com" || api.Host == "api-eu1.metorial.com")
 }

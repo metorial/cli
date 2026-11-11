@@ -14,6 +14,7 @@ import (
 
 type Client struct {
 	runtime config.Runtime
+	member  bool
 }
 
 func New(runtime config.Runtime) (*Client, error) {
@@ -22,6 +23,35 @@ func New(runtime config.Runtime) (*Client, error) {
 	}
 
 	return &Client{runtime: runtime}, nil
+}
+
+// NewMember exchanges the selected admin login for a disposable consumer credential.
+func NewMember(runtime config.Runtime, integrationID string) (*Client, string, error) {
+	var session struct {
+		AccessToken   string `json:"access_token"`
+		CatalogItemID string `json:"catalog_item_id"`
+	}
+	body := map[string]string{}
+	if integrationID != "" {
+		body["integration_id"] = integrationID
+	}
+	if err := (apiclient.Client{Runtime: runtime}).Do(http.MethodPost, "/member-consumer-session", body, &session); err != nil {
+		return nil, "", err
+	}
+	if strings.TrimSpace(session.AccessToken) == "" {
+		return nil, "", fmt.Errorf("metorial: member consumer session did not return a credential")
+	}
+	runtime.APIKey = session.AccessToken
+	runtime.InstanceID = ""
+	runtime.Refresh = nil
+	return &Client{runtime: runtime, member: true}, session.CatalogItemID, nil
+}
+
+func (c *Client) MCPOrigin() *url.URL {
+	if c.member {
+		return c.runtime.APIHostURL
+	}
+	return nil
 }
 
 func (c *Client) AccessToken() string {
@@ -150,7 +180,11 @@ func (c *Client) DeleteMagicMcpToken(magicMcpTokenID string) (*MagicMcpToken, er
 }
 
 func (c *Client) do(method string, target string, body any, output any) error {
-	return apiclient.Client{Runtime: c.runtime, Describe: describeError}.Do(method, target, body, output)
+	client := apiclient.Client{Runtime: c.runtime}
+	if !c.member {
+		client.Describe = describeError
+	}
+	return client.Do(method, target, body, output)
 }
 
 func describeError(target string, err error) error {

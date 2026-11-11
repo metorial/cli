@@ -46,7 +46,7 @@ func newToolsCommand(env commandEnv) *cobra.Command {
 			}
 
 			tips := []string{}
-			if len(liveTools) > 0 {
+			if len(liveTools) > 0 && !env.member {
 				identifier := integrationIdentifier(server)
 				toolKey := liveTools[0].Name
 				tips = append(tips,
@@ -160,7 +160,7 @@ func connectIntegration(ctx context.Context, env commandEnv, integrationID strin
 		return nil, nil, err
 	}
 
-	mcpClient, err := connectMagicMCP(ctx, client.AccessToken(), server)
+	mcpClient, err := connectMagicMCP(ctx, client, server)
 	if err != nil {
 		return nil, nil, err
 	}

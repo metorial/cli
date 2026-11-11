@@ -139,6 +139,24 @@ metorial-admin files upload ./logo.png --purpose organization_image
 metorial-admin files upload ./build-context --purpose sandbox_image_build_context
 ```
 
+### Personal integrations
+
+A signed-in member of a claimed organization can connect an existing integration
+and use its Magic MCP tools as their own consumer:
+
+```sh
+metorial-admin integrations personal setup <integration-id>
+metorial-admin integrations personal status <catalog-item-id> <setup-session-id>
+metorial-admin integrations personal wait <catalog-item-id> <setup-session-id>
+metorial-admin integrations personal finish <catalog-item-id> <setup-session-id>
+metorial-admin integrations personal tools <server-id>
+```
+
+Setup opens the browser and returns the IDs for resuming. Finish deploys and
+verifies the connection. The CLI uses its existing sign-in and keeps the
+short-lived consumer credential in memory.
+
+
 ## Skills
 
 Both CLIs can edit Metorial skills. `metorial` works with the skills you can access in your portal; `metorial-admin skills` works with every skill in the instance.

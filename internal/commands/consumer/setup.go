@@ -1,6 +1,7 @@
 package consumer
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"strings"
@@ -190,11 +191,7 @@ func resolveReconnectServer(client *consumerapi.Client, item *consumerapi.Provid
 }
 
 func runSetupSession(env commandEnv, command *cobra.Command, client *consumerapi.Client, item *consumerapi.Provider, authMethodID string) (*consumerapi.SetupSession, error) {
-	if strings.TrimSpace(authMethodID) == "" {
-		authMethodID = preferredAuthMethodID(item)
-	}
-
-	session, err := client.StartSetup(item.ID, authMethodID)
+	session, err := startSetupSession(client, item, authMethodID)
 	if err != nil {
 		return nil, err
 	}
@@ -221,6 +218,13 @@ func runSetupSession(env commandEnv, command *cobra.Command, client *consumerapi
 	}
 
 	return waitForSetupSession(writer, features, client, item.ID, session)
+}
+
+func startSetupSession(client *consumerapi.Client, item *consumerapi.Provider, authMethodID string) (*consumerapi.SetupSession, error) {
+	if strings.TrimSpace(authMethodID) == "" {
+		authMethodID = preferredAuthMethodID(item)
+	}
+	return client.StartSetup(item.ID, authMethodID)
 }
 
 func preferredAuthMethodID(item *consumerapi.Provider) string {
@@ -264,6 +268,10 @@ func renderSetupPrompt(writer io.Writer, features terminal.Features, item *consu
 }
 
 func waitForSetupSession(writer io.Writer, features terminal.Features, client *consumerapi.Client, catalogItemID string, session *consumerapi.SetupSession) (*consumerapi.SetupSession, error) {
+	return waitForSetupSessionUntil(context.Background(), writer, features, client, catalogItemID, session)
+}
+
+func waitForSetupSessionUntil(ctx context.Context, writer io.Writer, features terminal.Features, client *consumerapi.Client, catalogItemID string, session *consumerapi.SetupSession) (*consumerapi.SetupSession, error) {
 	deadline := session.ExpiresAt
 	if deadline.IsZero() {
 		deadline = time.Now().Add(setupFallbackTimeout)
@@ -274,7 +282,7 @@ func waitForSetupSession(writer io.Writer, features terminal.Features, client *c
 	defer spinner.Stop()
 
 	for {
-		current, err := client.GetSetup(catalogItemID, session.ID)
+		current, err := getSetupWithContext(ctx, client, catalogItemID, session.ID)
 		if err != nil {
 			return nil, err
 		}
@@ -292,7 +300,13 @@ func waitForSetupSession(writer io.Writer, features terminal.Features, client *c
 			return nil, fmt.Errorf("metorial: setup session %s expired before it was completed", current.ID)
 		}
 
-		time.Sleep(setupPollInterval)
+		timer := time.NewTimer(setupPollInterval)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return nil, fmt.Errorf("metorial: stopped waiting for setup session %s: %w", session.ID, ctx.Err())
+		case <-timer.C:
+		}
 	}
 }
 
@@ -321,4 +335,26 @@ func writeSetupResult(env commandEnv, command *cobra.Command, title string, item
 		}
 		return commandutil.RenderTips(writer, features, tips)
 	})
+}
+
+// The existing REST client has its own request timeout. Bound the command's wait as well.
+func getSetupWithContext(ctx context.Context, client *consumerapi.Client, catalogItemID, setupID string) (*consumerapi.SetupSession, error) {
+	if ctx.Done() == nil {
+		return client.GetSetup(catalogItemID, setupID)
+	}
+	type result struct {
+		session *consumerapi.SetupSession
+		err     error
+	}
+	done := make(chan result, 1)
+	go func() {
+		session, err := client.GetSetup(catalogItemID, setupID)
+		done <- result{session: session, err: err}
+	}()
+	select {
+	case <-ctx.Done():
+		return nil, fmt.Errorf("metorial: stopped waiting for setup session %s: %w", setupID, ctx.Err())
+	case result := <-done:
+		return result.session, result.err
+	}
 }

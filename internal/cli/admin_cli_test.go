@@ -2,7 +2,9 @@ package cli
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -12,6 +14,7 @@ import (
 
 	"github.com/metorial/cli/internal/app"
 	"github.com/metorial/cli/internal/config"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 func executeAdmin(t *testing.T, args ...string) (string, error) {
@@ -226,6 +229,84 @@ func TestAdminIntegrationSetupResumesByID(t *testing.T) {
 		var result struct{ ID, Status string }
 		if err != nil || json.Unmarshal([]byte(output), &result) != nil || result.ID != "iss_1" || result.Status != step.status {
 			t.Fatalf("setup %v = %q, %v", step.args, output, err)
+		}
+	}
+}
+
+func TestAdminPersonalIntegrationReusesConsumerSetupAndMCP(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("METORIAL_SKIP_UPDATE_CHECK", "1")
+
+	protocol := mcp.NewServer(&mcp.Implementation{Name: "test", Version: "1"}, nil)
+	protocol.AddTool(&mcp.Tool{Name: "example", InputSchema: json.RawMessage(`{"type":"object"}`)},
+		func(context.Context, *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			t.Error("verification must not call tools")
+			return nil, nil
+		})
+	mcpHandler := mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return protocol }, nil)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		authorization := r.Header.Get("Authorization")
+		if r.URL.Path == "/member-consumer-session" {
+			if r.Method != http.MethodPost || authorization != "Bearer admin-token" ||
+				r.Header.Get("metorial-instance-id") != "ins_1" {
+				http.Error(w, "invalid exchange request", http.StatusUnauthorized)
+				return
+			}
+			var body struct {
+				IntegrationID string `json:"integration_id"`
+			}
+			if json.NewDecoder(r.Body).Decode(&body) != nil {
+				http.Error(w, "invalid exchange body", http.StatusBadRequest)
+				return
+			}
+			response := map[string]string{"access_token": "ephemeral-consumer-token"}
+			if body.IntegrationID == "int_1" {
+				response["catalog_item_id"] = "ptb_1"
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(response)
+			return
+		}
+
+		if authorization != "Bearer ephemeral-consumer-token" {
+			http.Error(w, "consumer credential required", http.StatusUnauthorized)
+			return
+		}
+		if r.URL.Path == "/connect/magic/example" {
+			mcpHandler.ServeHTTP(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		switch r.Method + " " + r.URL.Path {
+		case "GET /consumer/providers/ptb_1":
+			_, _ = io.WriteString(w, `{"id":"cat_1","type":"provider_template","availability":"available_now"}`)
+		case "POST /consumer/providers/cat_1/setup":
+			_, _ = io.WriteString(w, `{"id":"iss_1","status":"pending","url":"https://example.test/setup"}`)
+		case "GET /consumer/providers/cat_1/setup/iss_1":
+			_, _ = io.WriteString(w, `{"id":"iss_1","status":"successful"}`)
+		case "POST /consumer/providers/cat_1/deploy", "GET /magic-mcp-servers/mgsr_1":
+			_, _ = fmt.Fprintf(w, `{"id":"mgsr_1","endpoints":[{"url":"http://%s/connect/magic/example"}]}`, r.Host)
+		default:
+			http.Error(w, "unexpected endpoint", http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	base := []string{"--api-host", server.URL, "--api-key", "admin-token", "--instance", "ins_1",
+		"--format", "json", "integrations", "personal"}
+	for _, step := range []struct {
+		args []string
+		want string
+	}{
+		{[]string{"setup", "int_1", "--no-browser"}, `"status": "pending"`},
+		{[]string{"status", "cat_1", "iss_1"}, `"status": "successful"`},
+		{[]string{"wait", "cat_1", "iss_1"}, `"status": "successful"`},
+		{[]string{"finish", "cat_1", "iss_1"}, `"tool_count": 1`},
+		{[]string{"tools", "mgsr_1"}, `"name": "example"`},
+	} {
+		output, err := executeAdmin(t, append(base, step.args...)...)
+		if err != nil || !strings.Contains(output, step.want) || strings.Contains(output, "ephemeral-consumer-token") {
+			t.Fatalf("personal %v = %q, %v", step.args, output, err)
 		}
 	}
 }

@@ -5,6 +5,7 @@ import (
 	authcmd "github.com/metorial/cli/internal/commands/auth"
 	clicmd "github.com/metorial/cli/internal/commands/cli"
 	completioncmd "github.com/metorial/cli/internal/commands/completion"
+	consumercmd "github.com/metorial/cli/internal/commands/consumer"
 	examplecmd "github.com/metorial/cli/internal/commands/example"
 	fetchcmd "github.com/metorial/cli/internal/commands/fetch"
 	filescmd "github.com/metorial/cli/internal/commands/files"
@@ -16,6 +17,7 @@ import (
 	systemcmd "github.com/metorial/cli/internal/commands/system"
 	"github.com/metorial/cli/internal/commandutil"
 	"github.com/metorial/cli/internal/config"
+	"github.com/metorial/cli/internal/resourcecmd"
 	"github.com/spf13/cobra"
 )
 
@@ -57,6 +59,9 @@ func newAdminRoot(application *app.App) (*cobra.Command, error) {
 		return nil, err
 	}
 	if !commandutil.BrowserShellEnabled() {
+		if integrations := resourcecmd.CommandByName(command, "integrations"); integrations != nil {
+			integrations.AddCommand(consumercmd.NewMemberCommand(ctx))
+		}
 		if err := filescmd.Attach(command, ctx); err != nil {
 			return nil, err
 		}
