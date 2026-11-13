@@ -6385,6 +6385,8 @@ func Catalog() []resourcecmd.ResourceSpec {
 						{Name: "integration-provider-id", Type: resourcecmd.FlagString, Target: "body.integration_provider_id", Usage: "Integration provider to enable callbacks for", Required: true, Repeated: false},
 						{Name: "name", Type: resourcecmd.FlagString, Target: "body.name", Usage: "Display name for the callback. Defaults to the name of the integration provider.", Required: false, Repeated: false},
 						{Name: "description", Type: resourcecmd.FlagString, Target: "body.description", Usage: "Description for the callback. Defaults to the description of the integration provider.", Required: false, Repeated: false, Nullable: true},
+						{Name: "trigger-group-selections", Type: resourcecmd.FlagJSON, Target: "body.trigger_group_selections", Usage: "Resource selections keyed by trigger group key. Each value must match that group’s selection schema. Limited to 64 groups and 64 KiB of JSON.", Required: false, Repeated: false},
+						{Name: "trigger-group-selections-file", Type: resourcecmd.FlagJSONFile, Target: "body.trigger_group_selections", Usage: "Read trigger_group_selections JSON from a file", Required: false, Repeated: false},
 					},
 				},
 				{
@@ -6437,7 +6439,7 @@ func Catalog() []resourcecmd.ResourceSpec {
 					Method:     "PATCH",
 					Path:       "/callbacks/:callbackId",
 					Short:      "Update callback",
-					Long:       "Updates the name, description or metadata of a callback. Everything else about a callback is derived from its integration provider - set `callbacks.status` to `disabled` there to tear it down.",
+					Long:       "Updates the name, description, metadata or trigger group selections of a callback. Changing the selections re-registers the affected triggers. Everything else about a callback is derived from its integration provider - set `callbacks.status` to `disabled` there to tear it down.",
 					SDKMapping: "callbacks.update",
 					Args: []resourcecmd.ArgumentSpec{
 						{Name: "callback-id", Target: "path.callbackId", Required: true, Description: "callback id"},
@@ -6447,6 +6449,8 @@ func Catalog() []resourcecmd.ResourceSpec {
 						{Name: "description", Type: resourcecmd.FlagString, Target: "body.description", Usage: "Updated description", Required: false, Repeated: false, Nullable: true},
 						{Name: "metadata", Type: resourcecmd.FlagJSON, Target: "body.metadata", Usage: "Updated custom metadata", Required: false, Repeated: false},
 						{Name: "metadata-file", Type: resourcecmd.FlagJSONFile, Target: "body.metadata", Usage: "Read metadata JSON from a file", Required: false, Repeated: false},
+						{Name: "trigger-group-selections", Type: resourcecmd.FlagJSON, Target: "body.trigger_group_selections", Usage: "Resource selections keyed by trigger group key. Each value must match that group’s selection schema. Limited to 64 groups and 64 KiB of JSON.", Required: false, Repeated: false},
+						{Name: "trigger-group-selections-file", Type: resourcecmd.FlagJSONFile, Target: "body.trigger_group_selections", Usage: "Read trigger_group_selections JSON from a file", Required: false, Repeated: false},
 					},
 				},
 			},
