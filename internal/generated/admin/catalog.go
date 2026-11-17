@@ -6596,6 +6596,7 @@ func Catalog() []resourcecmd.ResourceSpec {
 						{Name: "callback-trigger-key", Type: resourcecmd.FlagStringSlice, Target: "query.callback_trigger_key", Usage: "Filter by callback trigger key(s), for events whose source is `callback`", Required: false, Repeated: true},
 						{Name: "chat-connection-id", Type: resourcecmd.FlagStringSlice, Target: "query.chat_connection_id", Usage: "Filter by chat connection ID(s), for events whose source is `chat`", Required: false, Repeated: true},
 						{Name: "provider-id", Type: resourcecmd.FlagStringSlice, Target: "query.provider_id", Usage: "Filter by catalog provider ID(s)", Required: false, Repeated: true},
+						{Name: "attribute", Type: resourcecmd.FlagStringSlice, Target: "query.attribute", Usage: "Filter by event attribute, as \"key:value\" (split at the first colon, so the value may contain colons). The keys are the trigger output fields marked `x-metorial-event-attribute` in the `output_schema` of a provider trigger. Repeat the parameter to filter by several: values for the same key match any of them, different keys must all match.", Required: false, Repeated: true},
 						{Name: "created-at", Type: resourcecmd.FlagJSON, Target: "query.created_at", Usage: "Filter event creation time by date range", Required: false, Repeated: false},
 					},
 				},
