@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -133,6 +134,10 @@ func (a *App) ResolveAuthConfig(apiKeyFlag, apiHostFlag, profileFlag string) (co
 		}, nil
 	}
 
+	if err := checkProfileHost(profile, apiHostURL); err != nil {
+		return config.Runtime{}, err
+	}
+
 	runtime := config.Runtime{
 		APIKey:      profile.AccessToken,
 		APIHost:     apiHostURL.String(),
@@ -185,6 +190,9 @@ func (a *App) refreshProfileRuntime(apiHostFlag, profileID string, force bool) (
 	if err != nil {
 		return config.Runtime{}, err
 	}
+	if err := checkProfileHost(profile, apiHostURL); err != nil {
+		return config.Runtime{}, err
+	}
 
 	profileRuntime := func(profile *config.Profile) config.Runtime {
 		runtime := config.Runtime{
@@ -234,6 +242,9 @@ func (a *App) refreshProfileRuntime(apiHostFlag, profileID string, force bool) (
 		if errors.As(err, &apiError) {
 			switch apiError.ErrorCode {
 			case "invalid_grant":
+				if latest, ok := reopenProfile(profileID); ok && latest.RefreshToken != profile.RefreshToken {
+					return profileRuntime(latest), nil
+				}
 				return config.Runtime{}, fmt.Errorf(
 					"metorial: the current profile %s has expired or was revoked.\nRun \"metorial login\" to sign in again or \"metorial profiles list\" to switch profiles",
 					profile.ID,
@@ -287,11 +298,44 @@ func (a *App) refreshProfileRuntime(apiHostFlag, profileID string, force bool) (
 		profile.InstanceID = response.Instance.ID
 	}
 
-	if err := store.UpsertProfile(*profile, true); err != nil {
+	if err := store.UpdateProfile(*profile, true); err != nil {
+		if errors.Is(err, config.ErrProfileNotFound) {
+			return config.Runtime{}, fmt.Errorf(
+				"metorial: the profile %s was signed out on this computer.\nRun \"metorial login\" to sign in again",
+				profile.ID,
+			)
+		}
 		return config.Runtime{}, err
 	}
 
 	return profileRuntime(profile), nil
+}
+
+func reopenProfile(profileID string) (*config.Profile, bool) {
+	store, err := config.OpenStore()
+	if err != nil {
+		return nil, false
+	}
+	return store.ProfileByID(profileID)
+}
+
+// A profile's tokens only ever go to the host that issued them.
+func checkProfileHost(profile *config.Profile, apiHostURL *url.URL) error {
+	stored := strings.TrimSpace(profile.APIHost)
+	if stored == "" {
+		return nil
+	}
+	storedURL, err := config.NormalizeBaseURL(stored)
+	if err != nil || storedURL.String() == apiHostURL.String() {
+		return nil
+	}
+	return fmt.Errorf(
+		"metorial: the profile %s is signed in to %s, not %s.\nRun \"metorial login --api-host %s\" to sign in there, or pass --api-key",
+		profile.ID,
+		storedURL,
+		apiHostURL,
+		apiHostURL,
+	)
 }
 
 func (a *App) resolveInstance(runtime config.Runtime, instanceFlag string) (config.Runtime, error) {

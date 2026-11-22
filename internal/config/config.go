@@ -2,10 +2,12 @@ package config
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -383,12 +385,13 @@ func (s *Store) storeTokens(profile Profile) Profile {
 		return profile
 	}
 
-	if profile.TokenStorage == TokenStorageFile || s.secrets == nil || (profile.TokenStorage == "" && preferFileTokenStorage()) {
+	if s.secrets == nil || (profile.TokenStorage != TokenStorageKeychain && preferFileTokenStorage()) {
 		profile.TokenStorage = TokenStorageFile
 		return profile
 	}
 
 	if err := s.secrets.Set(profile.ID, secret); err != nil {
+		fmt.Fprintf(os.Stderr, "metorial: could not save the sign-in for %s in the system keychain (%v).\nIt is kept in %s, readable only by you, until the keychain works again.\n", profile.ID, err, s.path)
 		profile.TokenStorage = TokenStorageFile
 		return profile
 	}
@@ -444,7 +447,32 @@ func writeFileAtomic(path string, content []byte, mode os.FileMode) error {
 		return err
 	}
 
-	return os.Rename(tempPath, path)
+	if err := renameReplacing(tempPath, path); err != nil {
+		return err
+	}
+	syncDir(filepath.Dir(path))
+	return nil
+}
+
+func renameReplacing(from, to string) error {
+	err := os.Rename(from, to)
+	for attempt := 1; err != nil && runtime.GOOS == "windows" && attempt <= 5; attempt++ {
+		time.Sleep(time.Duration(attempt*20) * time.Millisecond)
+		err = os.Rename(from, to)
+	}
+	return err
+}
+
+func syncDir(dir string) {
+	if runtime.GOOS == "windows" {
+		return
+	}
+	handle, err := os.Open(dir)
+	if err != nil {
+		return
+	}
+	_ = handle.Sync()
+	_ = handle.Close()
 }
 
 func hasLegacyTokens(file File) bool {
@@ -633,6 +661,31 @@ func (s *Store) UpsertProfile(profile Profile, setCurrent bool) error {
 	})
 }
 
+var ErrProfileNotFound = errors.New("profile not found")
+
+// UpdateProfile saves a profile that must still exist: a refresh must not bring back a profile
+// that was signed out meanwhile.
+func (s *Store) UpdateProfile(profile Profile, setCurrent bool) error {
+	return s.update(func(file *File) error {
+		existing, ok := file.Profiles[profile.ID]
+		if !ok {
+			return ErrProfileNotFound
+		}
+
+		if profile.extra == nil {
+			profile.extra = existing.extra
+		}
+		now := time.Now().UTC()
+		profile.UpdatedAt = now
+		profile.LastUsedAt = now
+		file.Profiles[profile.ID] = profile
+		if setCurrent {
+			file.setCurrentProfileID(profile.Subject(), profile.ID)
+		}
+		return nil
+	})
+}
+
 func (s *Store) SetCurrentProfile(id string) error {
 	return s.update(func(file *File) error {
 		profile, ok := file.Profiles[strings.TrimSpace(id)]
@@ -651,8 +704,14 @@ func (s *Store) SetCurrentProfile(id string) error {
 }
 
 func (s *Store) RemoveProfile(id string) (*Profile, error) {
+	unlock, err := LockRefresh(strings.TrimSpace(id))
+	if err != nil {
+		return nil, fmt.Errorf("metorial: failed to remove profile %s: %w", id, err)
+	}
+	defer unlock()
+
 	var removed Profile
-	err := s.update(func(file *File) error {
+	err = s.update(func(file *File) error {
 		profile, ok := file.Profiles[strings.TrimSpace(id)]
 		if !ok {
 			return fmt.Errorf("profile not found")
@@ -671,7 +730,7 @@ func (s *Store) RemoveProfile(id string) (*Profile, error) {
 		return nil, err
 	}
 
-	if s.secrets != nil && removed.TokenStorage != TokenStorageFile {
+	if s.secrets != nil {
 		_ = s.secrets.Delete(removed.ID)
 	}
 

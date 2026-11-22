@@ -13,8 +13,9 @@ import (
 )
 
 type memorySecrets struct {
-	mu    sync.Mutex
-	items map[string]Secret
+	mu      sync.Mutex
+	items   map[string]Secret
+	failing bool
 }
 
 func useMemorySecrets(t *testing.T) *memorySecrets {
@@ -37,6 +38,9 @@ func (m *memorySecrets) Get(profileID string) (Secret, bool, error) {
 func (m *memorySecrets) Set(profileID string, secret Secret) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if m.failing {
+		return fmt.Errorf("keychain locked")
+	}
 	m.items[profileID] = secret
 	return nil
 }
@@ -343,5 +347,112 @@ func TestConfigWriterProcess(t *testing.T) {
 		if err := store.UpsertProfile(profile, true); err != nil {
 			t.Fatalf("UpsertProfile() error = %v", err)
 		}
+	}
+}
+
+func TestUpdateProfileNeverBringsBackARemovedProfile(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	useMemorySecrets(t)
+
+	store, err := OpenStore()
+	if err != nil {
+		t.Fatalf("OpenStore() error = %v", err)
+	}
+	if err := store.UpsertProfile(consumerProfile("access_1"), true); err != nil {
+		t.Fatalf("UpsertProfile() error = %v", err)
+	}
+	refreshed, _ := store.CurrentProfileFor(SubjectTypeConsumer)
+	if _, err := store.RemoveProfile(refreshed.ID); err != nil {
+		t.Fatalf("RemoveProfile() error = %v", err)
+	}
+
+	refreshed.AccessToken = "access_2"
+	if err := store.UpdateProfile(*refreshed, true); err != ErrProfileNotFound {
+		t.Fatalf("UpdateProfile() error = %v, want ErrProfileNotFound", err)
+	}
+	if _, ok := store.ProfileByID(refreshed.ID); ok {
+		t.Fatalf("the removed profile came back")
+	}
+}
+
+func TestRemovalWaitsForARunningRefresh(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	useMemorySecrets(t)
+
+	store, err := OpenStore()
+	if err != nil {
+		t.Fatalf("OpenStore() error = %v", err)
+	}
+	if err := store.UpsertProfile(consumerProfile("access_1"), true); err != nil {
+		t.Fatalf("UpsertProfile() error = %v", err)
+	}
+
+	unlock, err := LockRefresh("ins_1:cpr_1")
+	if err != nil {
+		t.Fatalf("LockRefresh() error = %v", err)
+	}
+	removed := make(chan error, 1)
+	go func() {
+		_, err := store.RemoveProfile("ins_1:cpr_1")
+		removed <- err
+	}()
+
+	select {
+	case <-removed:
+		t.Fatalf("RemoveProfile() finished while a refresh held the lock")
+	case <-time.After(200 * time.Millisecond):
+	}
+	unlock()
+	if err := <-removed; err != nil {
+		t.Fatalf("RemoveProfile() error = %v", err)
+	}
+}
+
+func TestAFailingKeychainFallsBackToTheFileAndIsRetried(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	secrets := useMemorySecrets(t)
+	secrets.failing = true
+
+	store, err := OpenStore()
+	if err != nil {
+		t.Fatalf("OpenStore() error = %v", err)
+	}
+	if err := store.UpsertProfile(consumerProfile("access_1"), true); err != nil {
+		t.Fatalf("UpsertProfile() error = %v", err)
+	}
+	stored := rawProfile(t, readRawConfig(t), "ins_1:cpr_1")
+	if stored["token_storage"] != TokenStorageFile || stored["access_token"] != "access_1" {
+		t.Fatalf("stored profile = %v, want the file fallback", stored)
+	}
+
+	secrets.failing = false
+	if err := store.UpdateSettings(func(settings *Settings) { settings.DefaultFormat = "json" }); err != nil {
+		t.Fatalf("UpdateSettings() error = %v", err)
+	}
+	stored = rawProfile(t, readRawConfig(t), "ins_1:cpr_1")
+	if stored["token_storage"] != TokenStorageKeychain || stored["access_token"] != "" || stored["refresh_token"] != "" {
+		t.Fatalf("stored profile = %v, want tokens moved to the keychain", stored)
+	}
+	if secrets.items["ins_1:cpr_1"].AccessToken != "access_1" {
+		t.Fatalf("keychain secret = %+v", secrets.items["ins_1:cpr_1"])
+	}
+}
+
+func TestRemovalDeletesTheKeychainItemWhateverTheStorage(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	secrets := useMemorySecrets(t)
+	writeRawConfig(t, `{"version":2,"profiles":{"ins_1:cpr_1":{"id":"ins_1:cpr_1","subject_type":"consumer","token_storage":"file","access_token":"a"}}}`)
+	secrets.items["ins_1:cpr_1"] = Secret{AccessToken: "stale"}
+	t.Setenv(EnvCredentialStorage, TokenStorageFile)
+
+	store, err := OpenStore()
+	if err != nil {
+		t.Fatalf("OpenStore() error = %v", err)
+	}
+	if _, err := store.RemoveProfile("ins_1:cpr_1"); err != nil {
+		t.Fatalf("RemoveProfile() error = %v", err)
+	}
+	if _, ok := secrets.items["ins_1:cpr_1"]; ok {
+		t.Fatalf("the keychain item survived removal")
 	}
 }
