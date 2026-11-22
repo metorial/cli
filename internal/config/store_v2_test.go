@@ -2,11 +2,13 @@ package config
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -21,9 +23,7 @@ type memorySecrets struct {
 func useMemorySecrets(t *testing.T) *memorySecrets {
 	t.Helper()
 	secrets := &memorySecrets{items: map[string]Secret{}}
-	previous := newSecrets
-	newSecrets = func() Secrets { return secrets }
-	t.Cleanup(func() { newSecrets = previous })
+	t.Cleanup(SetSecretsBackend(secrets))
 	t.Setenv(EnvCredentialStorage, TokenStorageKeychain)
 	return secrets
 }
@@ -240,20 +240,19 @@ func TestStaleCopiesDoNotOverwriteRotatedTokens(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OpenStore() error = %v", err)
 	}
-	rotated, _ := second.CurrentProfileFor(SubjectTypeConsumer)
-	rotated.AccessToken = "access_2"
-	rotated.RefreshToken = "refresh-access_2"
-	if err := second.UpsertProfile(*rotated, true); err != nil {
+	if err := second.UpsertProfile(consumerProfile("access_2"), true); err != nil {
 		t.Fatalf("UpsertProfile(rotated) error = %v", err)
 	}
 
-	stale.PortalName = "Renamed"
-	if err := first.UpsertProfile(*stale, false); err != nil {
-		t.Fatalf("UpsertProfile(stale) error = %v", err)
+	if err := first.EditProfile(stale.ID, func(profile *Profile) { profile.PortalName = "Renamed" }); err != nil {
+		t.Fatalf("EditProfile() error = %v", err)
 	}
 
 	if secret := secrets.items["ins_1:cpr_1"]; secret.AccessToken != "access_2" || secret.RefreshToken != "refresh-access_2" {
 		t.Fatalf("keychain secret = %+v, want the rotated tokens", secret)
+	}
+	if stale.AccessToken != "access_1" {
+		t.Fatalf("stale copy = %+v, want the original tokens", stale)
 	}
 	reloaded, _ := OpenStore()
 	current, _ := reloaded.CurrentProfileFor(SubjectTypeConsumer)
@@ -350,7 +349,7 @@ func TestConfigWriterProcess(t *testing.T) {
 	}
 }
 
-func TestUpdateProfileNeverBringsBackARemovedProfile(t *testing.T) {
+func TestEditsNeverBringBackARemovedProfile(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	useMemorySecrets(t)
 
@@ -366,9 +365,15 @@ func TestUpdateProfileNeverBringsBackARemovedProfile(t *testing.T) {
 		t.Fatalf("RemoveProfile() error = %v", err)
 	}
 
-	refreshed.AccessToken = "access_2"
-	if err := store.UpdateProfile(*refreshed, true); err != ErrProfileNotFound {
-		t.Fatalf("UpdateProfile() error = %v, want ErrProfileNotFound", err)
+	err = store.EditProfile(refreshed.ID, func(profile *Profile) { profile.AccessToken = "access_2" })
+	if !errors.Is(err, ErrProfileNotFound) {
+		t.Fatalf("EditProfile() error = %v, want ErrProfileNotFound", err)
+	}
+	if err := store.SetCurrentProfile(refreshed.ID); !errors.Is(err, ErrProfileNotFound) {
+		t.Fatalf("SetCurrentProfile() error = %v, want ErrProfileNotFound", err)
+	}
+	if _, err := store.RemoveProfile(refreshed.ID); !errors.Is(err, ErrProfileNotFound) {
+		t.Fatalf("RemoveProfile() error = %v, want ErrProfileNotFound", err)
 	}
 	if _, ok := store.ProfileByID(refreshed.ID); ok {
 		t.Fatalf("the removed profile came back")
@@ -454,5 +459,82 @@ func TestRemovalDeletesTheKeychainItemWhateverTheStorage(t *testing.T) {
 	}
 	if _, ok := secrets.items["ins_1:cpr_1"]; ok {
 		t.Fatalf("the keychain item survived removal")
+	}
+}
+
+func TestEditProfileKeepsKeychainTokensAndFileDetails(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	secrets := useMemorySecrets(t)
+	writeRawConfig(t, `{"version":2,"profiles":{"ins_1:cpr_1":{"id":"ins_1:cpr_1","subject_type":"consumer","token_storage":"keychain","desktop_only":true}}}`)
+	secrets.items["ins_1:cpr_1"] = Secret{AccessToken: "a", RefreshToken: "r"}
+
+	store, err := OpenStore()
+	if err != nil {
+		t.Fatalf("OpenStore() error = %v", err)
+	}
+	if err := store.EditProfile(" ins_1:cpr_1 ", func(profile *Profile) {
+		if profile.AccessToken != "" {
+			t.Errorf("EditProfile() exposed keychain tokens: %+v", profile)
+		}
+		profile.ClaimEmail = "ada@example.com"
+	}); err != nil {
+		t.Fatalf("EditProfile() error = %v", err)
+	}
+
+	stored := rawProfile(t, readRawConfig(t), "ins_1:cpr_1")
+	if stored["claim_email"] != "ada@example.com" || stored["desktop_only"] != true || stored["access_token"] != "" {
+		t.Fatalf("stored profile = %v", stored)
+	}
+	if secret := secrets.items["ins_1:cpr_1"]; secret.AccessToken != "a" || secret.RefreshToken != "r" {
+		t.Fatalf("keychain secret = %+v", secret)
+	}
+}
+
+func TestInvalidProfileIDsAreRejected(t *testing.T) {
+	for _, id := range []string{"", "ins_1", "ins_1:", ":cpr_1", "ins_1:cpr_1:x", "ins 1:cpr_1", "ins_1:cpr/1", "ins_1:cpr_1\n", strings.Repeat("a", 129) + ":cpr_1"} {
+		if err := ValidateProfileID(id); !errors.Is(err, ErrInvalidProfileID) {
+			t.Errorf("ValidateProfileID(%q) = %v, want ErrInvalidProfileID", id, err)
+		}
+	}
+	for _, id := range []string{"ins_1:cpr_1", "org-A:usr_9", strings.Repeat("a", 128) + ":" + strings.Repeat("b", 128)} {
+		if err := ValidateProfileID(id); err != nil {
+			t.Errorf("ValidateProfileID(%q) = %v, want nil", id, err)
+		}
+	}
+
+	t.Setenv("HOME", t.TempDir())
+	secrets := useMemorySecrets(t)
+	store, err := OpenStore()
+	if err != nil {
+		t.Fatalf("OpenStore() error = %v", err)
+	}
+
+	profile := consumerProfile("access_1")
+	profile.ConsumerProfileID = "../cpr_1"
+	if err := store.UpsertProfile(profile, true); !errors.Is(err, ErrInvalidProfileID) {
+		t.Fatalf("UpsertProfile() error = %v, want ErrInvalidProfileID", err)
+	}
+
+	writeRawConfig(t, `{"version":2,"profiles":{"ins_1:cpr 1":{"id":"ins_1:cpr 1","subject_type":"consumer","access_token":"a"}}}`)
+	if err := store.UpdateSettings(func(settings *Settings) { settings.DefaultFormat = "json" }); !errors.Is(err, ErrInvalidProfileID) {
+		t.Fatalf("UpdateSettings() error = %v, want ErrInvalidProfileID", err)
+	}
+	if len(secrets.items) != 0 {
+		t.Fatalf("keychain items = %v, want none", secrets.items)
+	}
+}
+
+func TestRefreshLockPathStaysInTheCLIDirectory(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	dir, err := DefaultCLIDir()
+	if err != nil {
+		t.Fatalf("DefaultCLIDir() error = %v", err)
+	}
+	path, err := refreshLockPath("../ins_1:cpr_1")
+	if err != nil {
+		t.Fatalf("refreshLockPath() error = %v", err)
+	}
+	if path != filepath.Join(dir, "refresh-.._ins_1_cpr_1.lock") {
+		t.Fatalf("refreshLockPath() = %q", path)
 	}
 }

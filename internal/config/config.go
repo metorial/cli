@@ -98,8 +98,7 @@ type Profile struct {
 	UpdatedAt  time.Time `mapstructure:"updated_at" json:"updated_at"`
 	LastUsedAt time.Time `mapstructure:"last_used_at" json:"last_used_at"`
 
-	extra  map[string]json.RawMessage
-	loaded Secret
+	extra map[string]json.RawMessage
 }
 
 type Store struct {
@@ -302,6 +301,15 @@ func (s *Store) Write(file File) error {
 	})
 }
 
+func (s *Store) Reload() error {
+	file, err := s.load()
+	if err != nil {
+		return err
+	}
+	s.cached = file
+	return nil
+}
+
 func (s *Store) UpdateSettings(update func(*Settings)) error {
 	return s.update(func(file *File) error {
 		update(&file.Settings)
@@ -330,10 +338,6 @@ func (s *Store) load() (File, error) {
 	if file.Profiles == nil {
 		file.Profiles = map[string]Profile{}
 	}
-	for id, profile := range file.Profiles {
-		profile.loaded = profile.secret()
-		file.Profiles[id] = profile
-	}
 
 	return file, nil
 }
@@ -360,8 +364,10 @@ func (s *Store) update(mutate func(*File) error) error {
 
 	stored := cloneFile(file)
 	for id, profile := range stored.Profiles {
-		profile = s.storeTokens(profile)
-		profile.loaded = profile.secret()
+		profile, err := s.storeTokens(profile)
+		if err != nil {
+			return err
+		}
 		stored.Profiles[id] = profile
 	}
 
@@ -379,32 +385,35 @@ func (s *Store) update(mutate func(*File) error) error {
 	return nil
 }
 
-func (s *Store) storeTokens(profile Profile) Profile {
+func (s *Store) storeTokens(profile Profile) (Profile, error) {
 	secret := profile.secret()
 	if secret.empty() {
-		return profile
+		return profile, nil
+	}
+	if err := ValidateProfileID(profile.ID); err != nil {
+		return Profile{}, err
 	}
 
 	if s.secrets == nil || (profile.TokenStorage != TokenStorageKeychain && preferFileTokenStorage()) {
 		profile.TokenStorage = TokenStorageFile
-		return profile
+		return profile, nil
 	}
 
 	if err := s.secrets.Set(profile.ID, secret); err != nil {
 		fmt.Fprintf(os.Stderr, "metorial: could not save the sign-in for %s in the system keychain (%v).\nIt is kept in %s, readable only by you, until the keychain works again.\n", profile.ID, err, s.path)
 		profile.TokenStorage = TokenStorageFile
-		return profile
+		return profile, nil
 	}
 
 	profile.TokenStorage = TokenStorageKeychain
 	profile.AccessToken = ""
 	profile.RefreshToken = ""
-	return profile
+	return profile, nil
 }
 
 func (s *Store) withTokens(profile Profile) Profile {
 	legacyRewrite := profile.TokenStorage == "" && profile.AccessToken == ""
-	if s.secrets == nil || (profile.TokenStorage != TokenStorageKeychain && !legacyRewrite) {
+	if s.secrets == nil || (profile.TokenStorage != TokenStorageKeychain && !legacyRewrite) || ValidateProfileID(profile.ID) != nil {
 		return profile
 	}
 
@@ -419,7 +428,6 @@ func (s *Store) withTokens(profile Profile) Profile {
 	if !secret.ExpiresAt.IsZero() {
 		profile.ExpiresAt = secret.ExpiresAt
 	}
-	profile.loaded = profile.secret()
 	return profile
 }
 
@@ -624,6 +632,9 @@ func (s *Store) UpsertProfile(profile Profile, setCurrent bool) error {
 			profile.ID = ProfileID(profile.OrgID, profile.UserID)
 		}
 	}
+	if err := ValidateProfileID(profile.ID); err != nil {
+		return err
+	}
 
 	return s.update(func(file *File) error {
 		existing, ok := file.Profiles[profile.ID]
@@ -636,12 +647,6 @@ func (s *Store) UpsertProfile(profile Profile, setCurrent bool) error {
 			}
 			if profile.extra == nil {
 				profile.extra = existing.extra
-			}
-			if profile.secret().equal(profile.loaded) {
-				profile.AccessToken = existing.AccessToken
-				profile.RefreshToken = existing.RefreshToken
-				profile.ExpiresAt = existing.ExpiresAt
-				profile.TokenStorage = existing.TokenStorage
 			}
 		}
 
@@ -663,48 +668,40 @@ func (s *Store) UpsertProfile(profile Profile, setCurrent bool) error {
 
 var ErrProfileNotFound = errors.New("profile not found")
 
-// UpdateProfile saves a profile that must still exist: a refresh must not bring back a profile
-// that was signed out meanwhile.
-func (s *Store) UpdateProfile(profile Profile, setCurrent bool) error {
+// EditProfile edits the profile as it is stored right now: it never writes back stale tokens or
+// brings back a profile signed out meanwhile. The edit does not see tokens kept in the keychain.
+func (s *Store) EditProfile(id string, edit func(*Profile)) error {
+	return s.editProfile(id, false, edit)
+}
+
+func (s *Store) SetCurrentProfile(id string) error {
+	return s.editProfile(id, true, func(*Profile) {})
+}
+
+func (s *Store) editProfile(id string, setCurrent bool, edit func(*Profile)) error {
+	id = strings.TrimSpace(id)
 	return s.update(func(file *File) error {
-		existing, ok := file.Profiles[profile.ID]
+		profile, ok := file.Profiles[id]
 		if !ok {
 			return ErrProfileNotFound
 		}
 
-		if profile.extra == nil {
-			profile.extra = existing.extra
-		}
+		edit(&profile)
+		profile.ID = id
 		now := time.Now().UTC()
 		profile.UpdatedAt = now
 		profile.LastUsedAt = now
-		file.Profiles[profile.ID] = profile
+		file.Profiles[id] = profile
 		if setCurrent {
-			file.setCurrentProfileID(profile.Subject(), profile.ID)
+			file.setCurrentProfileID(profile.Subject(), id)
 		}
-		return nil
-	})
-}
-
-func (s *Store) SetCurrentProfile(id string) error {
-	return s.update(func(file *File) error {
-		profile, ok := file.Profiles[strings.TrimSpace(id)]
-		if !ok {
-			return fmt.Errorf("profile not found")
-		}
-
-		now := time.Now().UTC()
-		profile.LastUsedAt = now
-		profile.UpdatedAt = now
-		file.Profiles[profile.ID] = profile
-		file.setCurrentProfileID(profile.Subject(), profile.ID)
-
 		return nil
 	})
 }
 
 func (s *Store) RemoveProfile(id string) (*Profile, error) {
-	unlock, err := LockRefresh(strings.TrimSpace(id))
+	id = strings.TrimSpace(id)
+	unlock, err := LockRefresh(id)
 	if err != nil {
 		return nil, fmt.Errorf("metorial: failed to remove profile %s: %w", id, err)
 	}
@@ -712,14 +709,14 @@ func (s *Store) RemoveProfile(id string) (*Profile, error) {
 
 	var removed Profile
 	err = s.update(func(file *File) error {
-		profile, ok := file.Profiles[strings.TrimSpace(id)]
+		profile, ok := file.Profiles[id]
 		if !ok {
-			return fmt.Errorf("profile not found")
+			return ErrProfileNotFound
 		}
 
-		delete(file.Profiles, profile.ID)
+		delete(file.Profiles, id)
 		subjectType := profile.Subject()
-		if file.currentProfileID(subjectType) == profile.ID {
+		if file.currentProfileID(subjectType) == id {
 			file.setCurrentProfileID(subjectType, newestProfileID(file.Profiles, subjectType))
 		}
 
@@ -731,7 +728,7 @@ func (s *Store) RemoveProfile(id string) (*Profile, error) {
 	}
 
 	if s.secrets != nil {
-		_ = s.secrets.Delete(removed.ID)
+		_ = s.secrets.Delete(id)
 	}
 
 	return removed.Clone(), nil

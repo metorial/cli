@@ -87,7 +87,7 @@ Consumer logins are only available to users with a consumer profile on an active
 
 ### Saved sign-ins
 
-Profiles live in `~/.metorial/cli/config.json`, which Metorial Desktop shares: signing in with one signs in the other, and `metorial logout` also signs Desktop out of that account. On macOS and Windows the tokens are kept in the system keychain (service `com.metorial.credentials`, one item per profile) and the file only holds profile details. Elsewhere, or with `METORIAL_CREDENTIAL_STORAGE=file`, they stay in the file, readable only by you.
+Profiles live in `~/.metorial/cli/config.json`, which Metorial Desktop shares: signing in with one signs in the other, and `metorial logout` also signs Desktop out of that account. On macOS and Windows the tokens are kept in the system keychain (service `com.metorial.credentials`, one item per profile) and the file only holds profile details. Elsewhere, or with `METORIAL_CREDENTIAL_STORAGE=file`, they stay in the file, readable only by you. Metorial Desktop honours the same `METORIAL_CREDENTIAL_STORAGE=file` setting for the shared file (its older `METORIAL_DESKTOP_CREDENTIALS=file` keeps working).
 
 The first run of a CLI with keychain support moves existing tokens out of the file. Older CLI versions don't know about the keychain: they see those profiles as signed out and ask you to run `metorial login` again.
 

@@ -1,34 +1,26 @@
-//go:build !js
-
 package config
 
 import (
-	"context"
-	"fmt"
-	"time"
-
-	"github.com/gofrs/flock"
+	"path/filepath"
+	"regexp"
 )
 
-const (
-	configLockTimeout  = 30 * time.Second
-	refreshLockTimeout = 90 * time.Second
-	lockRetryDelay     = 25 * time.Millisecond
-)
+var unsafeLockName = regexp.MustCompile(`[^A-Za-z0-9._-]`)
 
-func lockPath(path string, timeout time.Duration) (func(), error) {
-	lock := flock.New(path, flock.SetPermissions(0o600))
+func refreshLockPath(profileID string) (string, error) {
+	dir, err := DefaultCLIDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, "refresh-"+unsafeLockName.ReplaceAllString(profileID, "_")+".lock"), nil
+}
 
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-
-	locked, err := lock.TryLockContext(ctx, lockRetryDelay)
+// LockRefresh serializes token refreshes for one profile across every process sharing the
+// config file (the CLI and Metorial Desktop), since a refresh rotates the shared refresh token.
+func LockRefresh(profileID string) (func(), error) {
+	path, err := refreshLockPath(profileID)
 	if err != nil {
 		return nil, err
 	}
-	if !locked {
-		return nil, fmt.Errorf("timed out waiting for %s", path)
-	}
-
-	return func() { _ = lock.Unlock() }, nil
+	return lockPath(path, refreshLockTimeout)
 }

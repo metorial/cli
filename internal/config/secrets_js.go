@@ -2,6 +2,6 @@
 
 package config
 
-var newSecrets = func() Secrets {
+func defaultSecrets() Secrets {
 	return nil
 }

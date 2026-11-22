@@ -5,21 +5,20 @@ package config
 import (
 	"encoding/json"
 	"errors"
-	"testing"
 
 	"github.com/zalando/go-keyring"
 )
 
 type keyringSecrets struct{}
 
-var newSecrets = func() Secrets {
-	if testing.Testing() {
-		return nil
-	}
+func defaultSecrets() Secrets {
 	return keyringSecrets{}
 }
 
 func (keyringSecrets) Get(profileID string) (Secret, bool, error) {
+	if err := ValidateProfileID(profileID); err != nil {
+		return Secret{}, false, err
+	}
 	raw, err := keyring.Get(KeychainService, profileID)
 	if errors.Is(err, keyring.ErrNotFound) {
 		return Secret{}, false, nil
@@ -36,6 +35,9 @@ func (keyringSecrets) Get(profileID string) (Secret, bool, error) {
 }
 
 func (keyringSecrets) Set(profileID string, secret Secret) error {
+	if err := ValidateProfileID(profileID); err != nil {
+		return err
+	}
 	raw, err := json.Marshal(secret)
 	if err != nil {
 		return err
@@ -44,6 +46,9 @@ func (keyringSecrets) Set(profileID string, secret Secret) error {
 }
 
 func (keyringSecrets) Delete(profileID string) error {
+	if err := ValidateProfileID(profileID); err != nil {
+		return err
+	}
 	err := keyring.Delete(KeychainService, profileID)
 	if errors.Is(err, keyring.ErrNotFound) {
 		return nil

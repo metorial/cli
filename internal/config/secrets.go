@@ -1,6 +1,8 @@
 package config
 
 import (
+	"errors"
+	"fmt"
 	"os"
 	"regexp"
 	"runtime"
@@ -28,14 +30,27 @@ type Secrets interface {
 	Delete(profileID string) error
 }
 
-func (s Secret) empty() bool {
-	return s.AccessToken == "" && s.RefreshToken == ""
+var ErrInvalidProfileID = errors.New("invalid profile id")
+
+var profileIDPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{1,128}:[A-Za-z0-9_-]{1,128}$`)
+
+func ValidateProfileID(id string) error {
+	if !profileIDPattern.MatchString(id) {
+		return fmt.Errorf("metorial: %w %q", ErrInvalidProfileID, id)
+	}
+	return nil
 }
 
-func (s Secret) equal(other Secret) bool {
-	return s.AccessToken == other.AccessToken &&
-		s.RefreshToken == other.RefreshToken &&
-		s.ExpiresAt.Equal(other.ExpiresAt)
+var newSecrets = defaultSecrets
+
+func SetSecretsBackend(secrets Secrets) (restore func()) {
+	previous := newSecrets
+	newSecrets = func() Secrets { return secrets }
+	return func() { newSecrets = previous }
+}
+
+func (s Secret) empty() bool {
+	return s.AccessToken == "" && s.RefreshToken == ""
 }
 
 func preferFileTokenStorage() bool {
@@ -46,24 +61,4 @@ func preferFileTokenStorage() bool {
 		return false
 	}
 	return runtime.GOOS != "darwin" && runtime.GOOS != "windows"
-}
-
-var unsafeLockName = regexp.MustCompile(`[^A-Za-z0-9._-]`)
-
-func refreshLockPath(profileID string) (string, error) {
-	dir, err := DefaultCLIDir()
-	if err != nil {
-		return "", err
-	}
-	return dir + string(os.PathSeparator) + "refresh-" + unsafeLockName.ReplaceAllString(profileID, "_") + ".lock", nil
-}
-
-// LockRefresh serializes token refreshes for one profile across every process sharing the
-// config file (the CLI and Metorial Desktop), since a refresh rotates the shared refresh token.
-func LockRefresh(profileID string) (func(), error) {
-	path, err := refreshLockPath(profileID)
-	if err != nil {
-		return nil, err
-	}
-	return lockPath(path, refreshLockTimeout)
 }

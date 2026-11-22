@@ -108,17 +108,13 @@ func syncStatus(store *config.Store, profile config.Profile, apiHostFlag string)
 
 func markStatusChecked(store *config.Store, profile config.Profile) {
 	now := time.Now().UTC()
-	profile.ClaimCheckedAt = &now
-	_ = store.UpsertProfile(profile, false)
+	_ = store.EditProfile(profile.ID, func(stored *config.Profile) {
+		stored.ClaimCheckedAt = &now
+	})
 }
 
 func saveClaimEmail(store *config.Store, profileID, email string) {
-	profile, ok := store.ProfileByID(profileID)
-	if !ok {
-		return
-	}
-
-	updated := *profile.Clone()
-	updated.ClaimEmail = email
-	_ = store.UpsertProfile(updated, false)
+	_ = store.EditProfile(profileID, func(stored *config.Profile) {
+		stored.ClaimEmail = email
+	})
 }

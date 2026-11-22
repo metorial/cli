@@ -16,6 +16,12 @@ import (
 	"github.com/metorial/cli/internal/terminal"
 )
 
+const expiryMargin = 30 * time.Second
+
+func fresh(profile *config.Profile) bool {
+	return !profile.Expired(time.Now().UTC().Add(expiryMargin))
+}
+
 type App struct {
 	Stdin  io.Reader
 	Stdout io.Writer
@@ -150,7 +156,7 @@ func (a *App) ResolveAuthConfig(apiKeyFlag, apiHostFlag, profileFlag string) (co
 		return a.refreshProfileRuntime(apiHostFlag, profile.ID, force)
 	}
 
-	if profile.Expired(time.Now().UTC().Add(30 * time.Second)) {
+	if !fresh(profile) {
 		return runtime.Refresh(true)
 	}
 
@@ -208,7 +214,7 @@ func (a *App) refreshProfileRuntime(apiHostFlag, profileID string, force bool) (
 		return runtime
 	}
 
-	if !force && !profile.Expired(time.Now().UTC().Add(30*time.Second)) {
+	if !force && fresh(profile) {
 		return profileRuntime(profile), nil
 	}
 
@@ -218,12 +224,12 @@ func (a *App) refreshProfileRuntime(apiHostFlag, profileID string, force bool) (
 	}
 	defer unlock()
 
-	store, err = config.OpenStore()
+	latest, ok, err := reloadProfile(store, profileID)
 	if err != nil {
 		return config.Runtime{}, err
 	}
-	if latest, ok := store.ProfileByID(profileID); ok {
-		if latest.AccessToken != profile.AccessToken && !latest.Expired(time.Now().UTC().Add(30*time.Second)) {
+	if ok {
+		if latest.AccessToken != profile.AccessToken && fresh(latest) {
 			return profileRuntime(latest), nil
 		}
 		profile = latest
@@ -242,7 +248,7 @@ func (a *App) refreshProfileRuntime(apiHostFlag, profileID string, force bool) (
 		if errors.As(err, &apiError) {
 			switch apiError.ErrorCode {
 			case "invalid_grant":
-				if latest, ok := reopenProfile(profileID); ok && latest.RefreshToken != profile.RefreshToken {
+				if latest, ok, _ := reloadProfile(store, profileID); ok && latest.RefreshToken != profile.RefreshToken {
 					return profileRuntime(latest), nil
 				}
 				return config.Runtime{}, fmt.Errorf(
@@ -263,6 +269,34 @@ func (a *App) refreshProfileRuntime(apiHostFlag, profileID string, force bool) (
 	}
 
 	now := time.Now().UTC()
+	applyRefresh(profile, response, now)
+	err = store.EditProfile(profile.ID, func(stored *config.Profile) {
+		applyRefresh(stored, response, now)
+		stored.RefreshToken = profile.RefreshToken
+		stored.ExpiresAt = profile.ExpiresAt
+	})
+	if err != nil {
+		if errors.Is(err, config.ErrProfileNotFound) {
+			return config.Runtime{}, fmt.Errorf(
+				"metorial: the profile %s was signed out on this computer.\nRun \"metorial login\" to sign in again",
+				profile.ID,
+			)
+		}
+		return config.Runtime{}, err
+	}
+
+	return profileRuntime(profile), nil
+}
+
+func reloadProfile(store *config.Store, profileID string) (*config.Profile, bool, error) {
+	if err := store.Reload(); err != nil {
+		return nil, false, err
+	}
+	profile, ok := store.ProfileByID(profileID)
+	return profile, ok, nil
+}
+
+func applyRefresh(profile *config.Profile, response *auth.TokenResponse, now time.Time) {
 	profile.AccessToken = response.AccessToken
 	if strings.TrimSpace(response.RefreshToken) != "" {
 		profile.RefreshToken = response.RefreshToken
@@ -297,26 +331,6 @@ func (a *App) refreshProfileRuntime(apiHostFlag, profileID string, force bool) (
 	if response.Instance != nil && strings.TrimSpace(response.Instance.ID) != "" {
 		profile.InstanceID = response.Instance.ID
 	}
-
-	if err := store.UpdateProfile(*profile, true); err != nil {
-		if errors.Is(err, config.ErrProfileNotFound) {
-			return config.Runtime{}, fmt.Errorf(
-				"metorial: the profile %s was signed out on this computer.\nRun \"metorial login\" to sign in again",
-				profile.ID,
-			)
-		}
-		return config.Runtime{}, err
-	}
-
-	return profileRuntime(profile), nil
-}
-
-func reopenProfile(profileID string) (*config.Profile, bool) {
-	store, err := config.OpenStore()
-	if err != nil {
-		return nil, false
-	}
-	return store.ProfileByID(profileID)
 }
 
 // A profile's tokens only ever go to the host that issued them.
@@ -326,7 +340,14 @@ func checkProfileHost(profile *config.Profile, apiHostURL *url.URL) error {
 		return nil
 	}
 	storedURL, err := config.NormalizeBaseURL(stored)
-	if err != nil || storedURL.String() == apiHostURL.String() {
+	if err != nil {
+		return fmt.Errorf(
+			"metorial: the profile %s has an invalid API host %q.\nRun \"metorial login\" to sign in again, or pass --api-key",
+			profile.ID,
+			stored,
+		)
+	}
+	if storedURL.String() == apiHostURL.String() {
 		return nil
 	}
 	return fmt.Errorf(

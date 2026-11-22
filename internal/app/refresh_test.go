@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"sync"
 	"sync/atomic"
@@ -132,11 +133,11 @@ func rejectRefresh(onRefresh func()) *httptest.Server {
 func TestARefreshTokenRotatedElsewhereIsAdoptedAfterInvalidGrant(t *testing.T) {
 	server := rejectRefresh(func() {
 		store, _ := config.OpenStore()
-		profile, _ := store.ProfileByID("ins_1:cpr_1")
-		profile.AccessToken = "elsewhere"
-		profile.RefreshToken = "refresh_elsewhere"
-		profile.ExpiresAt = time.Now().UTC().Add(time.Hour)
-		_ = store.UpdateProfile(*profile, true)
+		_ = store.EditProfile("ins_1:cpr_1", func(profile *config.Profile) {
+			profile.AccessToken = "elsewhere"
+			profile.RefreshToken = "refresh_elsewhere"
+			profile.ExpiresAt = time.Now().UTC().Add(time.Hour)
+		})
 	})
 	defer server.Close()
 	signedInConsumer(t, server.URL)
@@ -174,9 +175,9 @@ func TestARefreshDoesNotBringBackAProfileRemovedMeanwhile(t *testing.T) {
 func TestProfileTokensAreNeverSentToAnotherHost(t *testing.T) {
 	signedInConsumer(t, "https://api.metorial.com")
 	store, _ := config.OpenStore()
-	profile, _ := store.ProfileByID("ins_1:cpr_1")
-	profile.ExpiresAt = time.Now().UTC().Add(time.Hour)
-	_ = store.UpdateProfile(*profile, true)
+	_ = store.EditProfile("ins_1:cpr_1", func(profile *config.Profile) {
+		profile.ExpiresAt = time.Now().UTC().Add(time.Hour)
+	})
 
 	if _, err := consumerApp().ResolveAuthConfig("", "https://evil.example", ""); err == nil {
 		t.Fatalf("ResolveAuthConfig() used the profile's tokens for another host")
@@ -192,5 +193,40 @@ func TestProfileTokensAreNeverSentToAnotherHost(t *testing.T) {
 	t.Setenv(config.EnvAPIHost, "api.metorial.com")
 	if runtime, err := consumerApp().ResolveAuthConfig("", "", ""); err != nil || runtime.APIKey != "access_1" {
 		t.Fatalf("the profile's own host = %q, %v", runtime.APIKey, err)
+	}
+}
+
+func TestAProfileWithAnUnreadableHostIsNotUsed(t *testing.T) {
+	signedInConsumer(t, "https://api.metorial.com")
+	store, _ := config.OpenStore()
+	_ = store.EditProfile("ins_1:cpr_1", func(profile *config.Profile) {
+		profile.APIHost = "https://"
+		profile.ExpiresAt = time.Now().UTC().Add(time.Hour)
+	})
+
+	if _, err := consumerApp().ResolveAuthConfig("", "https://api.metorial.com", ""); err == nil {
+		t.Fatalf("ResolveAuthConfig() used a profile whose stored host cannot be parsed")
+	}
+	if err := checkProfileHost(&config.Profile{ID: "ins_1:cpr_1"}, &url.URL{Scheme: "https", Host: "api.metorial.com"}); err != nil {
+		t.Fatalf("checkProfileHost() without a stored host = %v", err)
+	}
+}
+
+func TestARefreshKeepsTheRefreshTokenWhenTheServerSendsNone(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		writer.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(writer, `{"access_token":"access_2","expires_in":3600}`)
+	}))
+	defer server.Close()
+	signedInConsumer(t, server.URL)
+
+	runtime, err := consumerApp().ResolveAuthConfig("", "", "")
+	if err != nil || runtime.APIKey != "access_2" {
+		t.Fatalf("ResolveAuthConfig() = %q, %v", runtime.APIKey, err)
+	}
+	store, _ := config.OpenStore()
+	profile, ok := store.ProfileByID("ins_1:cpr_1")
+	if !ok || profile.AccessToken != "access_2" || profile.RefreshToken != "refresh_1" || !fresh(profile) {
+		t.Fatalf("stored profile = %+v", profile)
 	}
 }
