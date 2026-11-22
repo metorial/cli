@@ -23,7 +23,9 @@ const (
 	EnvAPIHost      = "METORIAL_API_HOST"
 	EnvInstanceID   = "METORIAL_INSTANCE_ID"
 	DefaultFeedback = "https://github.com/metorial/cli"
-	ConfigVersion   = 1
+	ConfigVersion   = 2
+
+	projectConfigVersion = 1
 )
 
 type Runtime struct {
@@ -47,11 +49,15 @@ type File struct {
 	CurrentConsumerProfileID string             `mapstructure:"current_consumer_profile_id" json:"current_consumer_profile_id,omitempty"`
 	Settings                 Settings           `mapstructure:"settings" json:"settings"`
 	Profiles                 map[string]Profile `mapstructure:"profiles" json:"profiles"`
+
+	extra map[string]json.RawMessage
 }
 
 type Settings struct {
 	DefaultAPIHost string `mapstructure:"default_api_host" json:"default_api_host"`
 	DefaultFormat  string `mapstructure:"default_format" json:"default_format"`
+
+	extra map[string]json.RawMessage
 }
 
 type Profile struct {
@@ -61,6 +67,7 @@ type Profile struct {
 	ClientID     string    `mapstructure:"client_id" json:"client_id"`
 	AccessToken  string    `mapstructure:"access_token" json:"access_token"`
 	RefreshToken string    `mapstructure:"refresh_token" json:"refresh_token"`
+	TokenStorage string    `mapstructure:"token_storage" json:"token_storage,omitempty"`
 	TokenType    string    `mapstructure:"token_type" json:"token_type"`
 	ExpiresAt    time.Time `mapstructure:"expires_at" json:"expires_at"`
 	OrgID        string    `mapstructure:"org_id" json:"org_id"`
@@ -88,11 +95,15 @@ type Profile struct {
 	CreatedAt  time.Time `mapstructure:"created_at" json:"created_at"`
 	UpdatedAt  time.Time `mapstructure:"updated_at" json:"updated_at"`
 	LastUsedAt time.Time `mapstructure:"last_used_at" json:"last_used_at"`
+
+	extra  map[string]json.RawMessage
+	loaded Secret
 }
 
 type Store struct {
-	path   string
-	cached File
+	path    string
+	cached  File
+	secrets Secrets
 }
 
 type ProjectFile struct {
@@ -250,30 +261,20 @@ func OpenStore() (*Store, error) {
 	}
 
 	store := &Store{
-		path: path,
+		path:    path,
+		secrets: newSecrets(),
 	}
 
-	file := defaultFile()
-	if _, err := os.Stat(path); err == nil {
-		content, err := os.ReadFile(path)
-		if err != nil {
-			return nil, fmt.Errorf("metorial: failed to read config file %q: %w", path, err)
-		}
-		if err := json.Unmarshal(content, &file); err != nil {
-			return nil, fmt.Errorf("metorial: failed to parse config file %q: %w", path, err)
-		}
-	} else if !os.IsNotExist(err) {
-		return nil, fmt.Errorf("metorial: failed to read config file %q: %w", path, err)
+	file, err := store.load()
+	if err != nil {
+		return nil, err
 	}
-
-	if file.Version == 0 {
-		file.Version = ConfigVersion
-	}
-	if file.Profiles == nil {
-		file.Profiles = map[string]Profile{}
-	}
-
 	store.cached = file
+
+	if store.secrets != nil && !preferFileTokenStorage() && hasLegacyTokens(file) {
+		_ = store.update(func(*File) error { return nil })
+	}
+
 	return store, nil
 }
 
@@ -290,31 +291,169 @@ func (s *Store) Settings() Settings {
 }
 
 func (s *Store) Write(file File) error {
+	return s.update(func(current *File) error {
+		if file.extra == nil {
+			file.extra = current.extra
+		}
+		*current = cloneFile(file)
+		return nil
+	})
+}
+
+func (s *Store) UpdateSettings(update func(*Settings)) error {
+	return s.update(func(file *File) error {
+		update(&file.Settings)
+		return nil
+	})
+}
+
+func (s *Store) load() (File, error) {
+	file := defaultFile()
+	content, err := os.ReadFile(s.path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return file, nil
+		}
+		return File{}, fmt.Errorf("metorial: failed to read config file %q: %w", s.path, err)
+	}
+
+	file.Version = 0
+	if err := json.Unmarshal(content, &file); err != nil {
+		return File{}, fmt.Errorf("metorial: failed to parse config file %q: %w", s.path, err)
+	}
+
 	if file.Version == 0 {
-		file.Version = ConfigVersion
+		file.Version = 1
 	}
 	if file.Profiles == nil {
 		file.Profiles = map[string]Profile{}
 	}
+	for id, profile := range file.Profiles {
+		profile.loaded = profile.secret()
+		file.Profiles[id] = profile
+	}
 
-	content, err := json.MarshalIndent(file, "", "  ")
+	return file, nil
+}
+
+func (s *Store) update(mutate func(*File) error) error {
+	unlock, err := lockPath(s.path+".lock", configLockTimeout)
+	if err != nil {
+		return fmt.Errorf("metorial: failed to lock config file %q: %w", s.path, err)
+	}
+	defer unlock()
+
+	file, err := s.load()
+	if err != nil {
+		return err
+	}
+	if err := mutate(&file); err != nil {
+		return err
+	}
+
+	file.Version = ConfigVersion
+	if file.Profiles == nil {
+		file.Profiles = map[string]Profile{}
+	}
+
+	stored := cloneFile(file)
+	for id, profile := range stored.Profiles {
+		profile = s.storeTokens(profile)
+		profile.loaded = profile.secret()
+		stored.Profiles[id] = profile
+	}
+
+	content, err := json.MarshalIndent(stored, "", "  ")
 	if err != nil {
 		return fmt.Errorf("metorial: failed to encode config file %q: %w", s.path, err)
 	}
 	content = append(content, '\n')
 
-	if err := os.WriteFile(s.path, content, 0o600); err != nil {
+	if err := writeFileAtomic(s.path, content, 0o600); err != nil {
 		return fmt.Errorf("metorial: failed to write config file %q: %w", s.path, err)
 	}
 
-	s.cached = cloneFile(file)
+	s.cached = stored
 	return nil
 }
 
-func (s *Store) UpdateSettings(update func(*Settings)) error {
-	file := s.Read()
-	update(&file.Settings)
-	return s.Write(file)
+func (s *Store) storeTokens(profile Profile) Profile {
+	secret := profile.secret()
+	if secret.empty() {
+		return profile
+	}
+
+	if profile.TokenStorage == TokenStorageFile || s.secrets == nil || (profile.TokenStorage == "" && preferFileTokenStorage()) {
+		profile.TokenStorage = TokenStorageFile
+		return profile
+	}
+
+	if err := s.secrets.Set(profile.ID, secret); err != nil {
+		profile.TokenStorage = TokenStorageFile
+		return profile
+	}
+
+	profile.TokenStorage = TokenStorageKeychain
+	profile.AccessToken = ""
+	profile.RefreshToken = ""
+	return profile
+}
+
+func (s *Store) withTokens(profile Profile) Profile {
+	legacyRewrite := profile.TokenStorage == "" && profile.AccessToken == ""
+	if s.secrets == nil || (profile.TokenStorage != TokenStorageKeychain && !legacyRewrite) {
+		return profile
+	}
+
+	secret, ok, err := s.secrets.Get(profile.ID)
+	if err != nil || !ok {
+		return profile
+	}
+
+	profile.TokenStorage = TokenStorageKeychain
+	profile.AccessToken = secret.AccessToken
+	profile.RefreshToken = secret.RefreshToken
+	if !secret.ExpiresAt.IsZero() {
+		profile.ExpiresAt = secret.ExpiresAt
+	}
+	profile.loaded = profile.secret()
+	return profile
+}
+
+func writeFileAtomic(path string, content []byte, mode os.FileMode) error {
+	temp, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".*.tmp")
+	if err != nil {
+		return err
+	}
+	tempPath := temp.Name()
+	defer os.Remove(tempPath)
+
+	if err := temp.Chmod(mode); err != nil {
+		temp.Close()
+		return err
+	}
+	if _, err := temp.Write(content); err != nil {
+		temp.Close()
+		return err
+	}
+	if err := temp.Sync(); err != nil {
+		temp.Close()
+		return err
+	}
+	if err := temp.Close(); err != nil {
+		return err
+	}
+
+	return os.Rename(tempPath, path)
+}
+
+func hasLegacyTokens(file File) bool {
+	for _, profile := range file.Profiles {
+		if profile.TokenStorage == "" && !profile.secret().empty() {
+			return true
+		}
+	}
+	return false
 }
 
 func OpenProjectStore(cwd string) (*ProjectStore, error) {
@@ -322,7 +461,7 @@ func OpenProjectStore(cwd string) (*ProjectStore, error) {
 	store := &ProjectStore{path: path}
 
 	file := ProjectFile{
-		Version:           ConfigVersion,
+		Version:           projectConfigVersion,
 		SelectedInstances: map[string]string{},
 	}
 
@@ -339,7 +478,7 @@ func OpenProjectStore(cwd string) (*ProjectStore, error) {
 	}
 
 	if file.Version == 0 {
-		file.Version = ConfigVersion
+		file.Version = projectConfigVersion
 	}
 	if file.SelectedInstances == nil {
 		file.SelectedInstances = map[string]string{}
@@ -364,7 +503,7 @@ func (s *ProjectStore) SelectedInstance(key string) (string, bool) {
 func (s *ProjectStore) SetSelectedInstance(key, instanceID string) error {
 	file := s.cached
 	if file.Version == 0 {
-		file.Version = ConfigVersion
+		file.Version = projectConfigVersion
 	}
 	if file.SelectedInstances == nil {
 		file.SelectedInstances = map[string]string{}
@@ -406,7 +545,7 @@ func (s *Store) CurrentProfileFor(subjectType string) (*Profile, bool) {
 		return nil, false
 	}
 
-	return profile.Clone(), true
+	return s.withTokens(profile).Clone(), true
 }
 
 func (s *Store) ProfileByID(id string) (*Profile, bool) {
@@ -415,7 +554,7 @@ func (s *Store) ProfileByID(id string) (*Profile, bool) {
 		return nil, false
 	}
 
-	return profile.Clone(), true
+	return s.withTokens(profile).Clone(), true
 }
 
 func (s *Store) SortedProfiles() []Profile {
@@ -448,7 +587,6 @@ func (s *Store) SortedProfilesFor(subjectType string) []Profile {
 }
 
 func (s *Store) UpsertProfile(profile Profile, setCurrent bool) error {
-	file := s.Read()
 	now := time.Now().UTC()
 
 	if profile.ID == "" {
@@ -459,65 +597,85 @@ func (s *Store) UpsertProfile(profile Profile, setCurrent bool) error {
 		}
 	}
 
-	existing, ok := file.Profiles[profile.ID]
-	if ok {
-		if profile.Name == "" {
-			profile.Name = existing.Name
+	return s.update(func(file *File) error {
+		existing, ok := file.Profiles[profile.ID]
+		if ok {
+			if profile.Name == "" {
+				profile.Name = existing.Name
+			}
+			if profile.CreatedAt.IsZero() {
+				profile.CreatedAt = existing.CreatedAt
+			}
+			if profile.extra == nil {
+				profile.extra = existing.extra
+			}
+			if profile.secret().equal(profile.loaded) {
+				profile.AccessToken = existing.AccessToken
+				profile.RefreshToken = existing.RefreshToken
+				profile.ExpiresAt = existing.ExpiresAt
+				profile.TokenStorage = existing.TokenStorage
+			}
 		}
+
 		if profile.CreatedAt.IsZero() {
-			profile.CreatedAt = existing.CreatedAt
+			profile.CreatedAt = now
 		}
-	}
 
-	if profile.CreatedAt.IsZero() {
-		profile.CreatedAt = now
-	}
+		profile.UpdatedAt = now
+		profile.LastUsedAt = now
 
-	profile.UpdatedAt = now
-	profile.LastUsedAt = now
+		file.Profiles[profile.ID] = profile
+		if setCurrent {
+			file.setCurrentProfileID(profile.Subject(), profile.ID)
+		}
 
-	file.Profiles[profile.ID] = profile
-	if setCurrent {
-		file.setCurrentProfileID(profile.Subject(), profile.ID)
-	}
-
-	return s.Write(file)
+		return nil
+	})
 }
 
 func (s *Store) SetCurrentProfile(id string) error {
-	file := s.Read()
-	profile, ok := file.Profiles[strings.TrimSpace(id)]
-	if !ok {
-		return fmt.Errorf("profile not found")
-	}
+	return s.update(func(file *File) error {
+		profile, ok := file.Profiles[strings.TrimSpace(id)]
+		if !ok {
+			return fmt.Errorf("profile not found")
+		}
 
-	now := time.Now().UTC()
-	profile.LastUsedAt = now
-	profile.UpdatedAt = now
-	file.Profiles[profile.ID] = profile
-	file.setCurrentProfileID(profile.Subject(), profile.ID)
+		now := time.Now().UTC()
+		profile.LastUsedAt = now
+		profile.UpdatedAt = now
+		file.Profiles[profile.ID] = profile
+		file.setCurrentProfileID(profile.Subject(), profile.ID)
 
-	return s.Write(file)
+		return nil
+	})
 }
 
 func (s *Store) RemoveProfile(id string) (*Profile, error) {
-	file := s.Read()
-	profile, ok := file.Profiles[strings.TrimSpace(id)]
-	if !ok {
-		return nil, fmt.Errorf("profile not found")
-	}
+	var removed Profile
+	err := s.update(func(file *File) error {
+		profile, ok := file.Profiles[strings.TrimSpace(id)]
+		if !ok {
+			return fmt.Errorf("profile not found")
+		}
 
-	delete(file.Profiles, profile.ID)
-	subjectType := profile.Subject()
-	if file.currentProfileID(subjectType) == profile.ID {
-		file.setCurrentProfileID(subjectType, newestProfileID(file.Profiles, subjectType))
-	}
+		delete(file.Profiles, profile.ID)
+		subjectType := profile.Subject()
+		if file.currentProfileID(subjectType) == profile.ID {
+			file.setCurrentProfileID(subjectType, newestProfileID(file.Profiles, subjectType))
+		}
 
-	if err := s.Write(file); err != nil {
+		removed = profile
+		return nil
+	})
+	if err != nil {
 		return nil, err
 	}
 
-	return profile.Clone(), nil
+	if s.secrets != nil && removed.TokenStorage != TokenStorageFile {
+		_ = s.secrets.Delete(removed.ID)
+	}
+
+	return removed.Clone(), nil
 }
 
 func (p Profile) Clone() *Profile {
@@ -586,6 +744,14 @@ func defaultFile() File {
 	return File{
 		Version:  ConfigVersion,
 		Profiles: map[string]Profile{},
+	}
+}
+
+func (p Profile) secret() Secret {
+	return Secret{
+		AccessToken:  p.AccessToken,
+		RefreshToken: p.RefreshToken,
+		ExpiresAt:    p.ExpiresAt,
 	}
 }
 

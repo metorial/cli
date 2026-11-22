@@ -186,7 +186,7 @@ func (a *App) refreshProfileRuntime(apiHostFlag, profileID string, force bool) (
 		return config.Runtime{}, err
 	}
 
-	if !force && !profile.Expired(time.Now().UTC().Add(30*time.Second)) {
+	profileRuntime := func(profile *config.Profile) config.Runtime {
 		runtime := config.Runtime{
 			APIKey:      profile.AccessToken,
 			APIHost:     apiHostURL.String(),
@@ -197,7 +197,28 @@ func (a *App) refreshProfileRuntime(apiHostFlag, profileID string, force bool) (
 		runtime.Refresh = func(force bool) (config.Runtime, error) {
 			return a.refreshProfileRuntime(apiHostFlag, profile.ID, force)
 		}
-		return runtime, nil
+		return runtime
+	}
+
+	if !force && !profile.Expired(time.Now().UTC().Add(30*time.Second)) {
+		return profileRuntime(profile), nil
+	}
+
+	unlock, err := config.LockRefresh(profile.ID)
+	if err != nil {
+		return config.Runtime{}, fmt.Errorf("metorial: failed to refresh the current profile %s: %w", profile.ID, err)
+	}
+	defer unlock()
+
+	store, err = config.OpenStore()
+	if err != nil {
+		return config.Runtime{}, err
+	}
+	if latest, ok := store.ProfileByID(profileID); ok {
+		if latest.AccessToken != profile.AccessToken && !latest.Expired(time.Now().UTC().Add(30*time.Second)) {
+			return profileRuntime(latest), nil
+		}
+		profile = latest
 	}
 
 	if strings.TrimSpace(profile.RefreshToken) == "" || strings.TrimSpace(profile.ClientID) == "" {
@@ -270,18 +291,7 @@ func (a *App) refreshProfileRuntime(apiHostFlag, profileID string, force bool) (
 		return config.Runtime{}, err
 	}
 
-	runtime := config.Runtime{
-		APIKey:      profile.AccessToken,
-		APIHost:     apiHostURL.String(),
-		APIHostURL:  apiHostURL,
-		PlatformURL: platformURL,
-		Profile:     profile,
-	}
-	runtime.Refresh = func(force bool) (config.Runtime, error) {
-		return a.refreshProfileRuntime(apiHostFlag, profile.ID, force)
-	}
-
-	return runtime, nil
+	return profileRuntime(profile), nil
 }
 
 func (a *App) resolveInstance(runtime config.Runtime, instanceFlag string) (config.Runtime, error) {
