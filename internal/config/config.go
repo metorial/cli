@@ -216,12 +216,17 @@ func NormalizeBaseURL(raw string) (*url.URL, error) {
 		return nil, fmt.Errorf("metorial: invalid API host %q", raw)
 	}
 
-	parsed.Path = ""
+	// Self-hosted installs serve the API below a path (https://host/v1), so it stays.
+	parsed.Path = strings.TrimRight(parsed.Path, "/")
 	parsed.RawPath = ""
 	parsed.RawQuery = ""
 	parsed.Fragment = ""
 
 	return parsed, nil
+}
+
+func SameServer(a, b *url.URL) bool {
+	return strings.EqualFold(a.Scheme, b.Scheme) && strings.EqualFold(a.Host, b.Host)
 }
 
 func normalizePlatformURL(raw string) (string, error) {

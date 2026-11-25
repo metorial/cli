@@ -906,7 +906,7 @@ func createExampleAPIKey(runtime config.Runtime, exampleName string) (string, er
 		return "", err
 	}
 
-	requestURL := runtime.APIHostURL.ResolveReference(&url.URL{Path: "/organization/api-keys"}).String()
+	requestURL := runtime.APIHostURL.JoinPath("/organization/api-keys").String()
 	payload, err := json.Marshal(map[string]any{
 		"type":        "instance_access_token_secret",
 		"instance_id": runtime.InstanceID,

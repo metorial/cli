@@ -347,7 +347,7 @@ func checkProfileHost(profile *config.Profile, apiHostURL *url.URL) error {
 			stored,
 		)
 	}
-	if storedURL.String() == apiHostURL.String() {
+	if config.SameServer(storedURL, apiHostURL) {
 		return nil
 	}
 	return fmt.Errorf(

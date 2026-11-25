@@ -17,7 +17,8 @@ func TestNormalizeBaseURL(t *testing.T) {
 	}{
 		{name: "bare host", input: "api.metorial.com", want: "https://api.metorial.com"},
 		{name: "full url", input: "https://api.metorial.com", want: "https://api.metorial.com"},
-		{name: "trim path", input: "https://api.metorial.com/v1?x=1", want: "https://api.metorial.com"},
+		{name: "drop query", input: "https://api.metorial.com/?x=1", want: "https://api.metorial.com"},
+		{name: "keep a base path", input: "https://metorial.acme.com/v1/?x=1#y", want: "https://metorial.acme.com/v1"},
 	}
 
 	for _, tt := range tests {
@@ -31,6 +32,42 @@ func TestNormalizeBaseURL(t *testing.T) {
 
 			if got.String() != tt.want {
 				t.Fatalf("NormalizeBaseURL() = %q, want %q", got.String(), tt.want)
+			}
+		})
+	}
+}
+
+func TestSameServer(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		a    string
+		b    string
+		want bool
+	}{
+		{name: "same host", a: "https://metorial.acme.com", b: "https://metorial.acme.com", want: true},
+		{name: "same host with a base path", a: "https://metorial.acme.com", b: "https://metorial.acme.com/v1", want: true},
+		{name: "different port", a: "https://metorial.acme.com", b: "https://metorial.acme.com:8443", want: false},
+		{name: "different scheme", a: "https://metorial.acme.com", b: "http://metorial.acme.com", want: false},
+		{name: "different host", a: "https://metorial.acme.com", b: "https://api.metorial.com", want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			a, err := NormalizeBaseURL(tt.a)
+			if err != nil {
+				t.Fatalf("NormalizeBaseURL(%q) error = %v", tt.a, err)
+			}
+			b, err := NormalizeBaseURL(tt.b)
+			if err != nil {
+				t.Fatalf("NormalizeBaseURL(%q) error = %v", tt.b, err)
+			}
+
+			if got := SameServer(a, b); got != tt.want {
+				t.Fatalf("SameServer(%q, %q) = %v, want %v", tt.a, tt.b, got, tt.want)
 			}
 		})
 	}
