@@ -226,7 +226,7 @@ func (c *Client) CLIClaimEmail(accessToken, orgID, claimToken, email string) (*C
 }
 
 func (c *Client) getJSON(path string, output any) error {
-	requestURL := c.baseURL.ResolveReference(&url.URL{Path: path})
+	requestURL := c.baseURL.JoinPath(path)
 	request, err := http.NewRequest(http.MethodGet, requestURL.String(), nil)
 	if err != nil {
 		return fmt.Errorf("metorial: failed to create request: %w", err)
@@ -243,7 +243,7 @@ func (c *Client) postJSON(path string, accessToken string, body any, output any)
 		return fmt.Errorf("metorial: failed to encode request: %w", err)
 	}
 
-	requestURL := c.baseURL.ResolveReference(&url.URL{Path: path})
+	requestURL := c.baseURL.JoinPath(path)
 	request, err := http.NewRequest(http.MethodPost, requestURL.String(), bytes.NewReader(payload))
 	if err != nil {
 		return fmt.Errorf("metorial: failed to create request: %w", err)
@@ -259,7 +259,7 @@ func (c *Client) postJSON(path string, accessToken string, body any, output any)
 }
 
 func (c *Client) postForm(path string, values url.Values, output any) error {
-	requestURL := c.baseURL.ResolveReference(&url.URL{Path: path})
+	requestURL := c.baseURL.JoinPath(path)
 	request, err := http.NewRequest(http.MethodPost, requestURL.String(), bytes.NewBufferString(values.Encode()))
 	if err != nil {
 		return fmt.Errorf("metorial: failed to create auth request: %w", err)

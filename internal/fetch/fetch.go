@@ -140,8 +140,8 @@ func ResolveURL(apiHostURL *url.URL, target string) (*url.URL, error) {
 			return nil, fmt.Errorf("metorial: invalid request URL %q: %w", target, err)
 		}
 
-		if !sameHost(apiHostURL, parsed) {
-			return nil, fmt.Errorf("metorial: request URL host %q does not match selected API host %q", parsed.Host, apiHostURL.Host)
+		if !config.SameServer(apiHostURL, parsed) {
+			return nil, fmt.Errorf("metorial: request URL server %q does not match selected API host %q", parsed.Scheme+"://"+parsed.Host, apiHostURL.Scheme+"://"+apiHostURL.Host)
 		}
 
 		return parsed, nil
@@ -156,7 +156,9 @@ func ResolveURL(apiHostURL *url.URL, target string) (*url.URL, error) {
 		return nil, fmt.Errorf("metorial: invalid request path %q: %w", target, err)
 	}
 
-	return apiHostURL.ResolveReference(parsed), nil
+	resolved := apiHostURL.JoinPath(parsed.EscapedPath())
+	resolved.RawQuery = parsed.RawQuery
+	return resolved, nil
 }
 
 func ParseHeaders(input []string) (map[string][]string, error) {
@@ -222,10 +224,6 @@ func resolveMethod(input string, hasBody bool) string {
 		return "POST"
 	}
 	return "GET"
-}
-
-func sameHost(left, right *url.URL) bool {
-	return strings.EqualFold(left.Host, right.Host)
 }
 
 func looksLikeJSONBody(payload []byte) bool {

@@ -242,30 +242,33 @@ func applyStatus(store *config.Store, profileID string, status *auth.OnboardingS
 		return config.Profile{}, false
 	}
 
-	updated := *profile.Clone()
 	now := time.Now().UTC()
-	updated.ClaimCheckedAt = &now
-
-	if strings.TrimSpace(status.ClaimURL) != "" {
-		updated.ClaimURL = status.ClaimURL
-	}
-	if strings.TrimSpace(status.Organization.Slug) != "" {
-		updated.OrgSlug = status.Organization.Slug
-	}
-
 	claimed := status.Status == "claimed"
-	if claimed {
-		updated.Unclaimed = false
-		updated.ClaimToken = ""
-		updated.ClaimURL = ""
-		if status.User != nil && strings.TrimSpace(status.User.ID) != "" {
-			updated.UserID = status.User.ID
-			updated.UserName = status.User.Name
-			updated.UserEmail = status.User.Email
+	apply := func(updated *config.Profile) {
+		updated.ClaimCheckedAt = &now
+
+		if strings.TrimSpace(status.ClaimURL) != "" {
+			updated.ClaimURL = status.ClaimURL
+		}
+		if strings.TrimSpace(status.Organization.Slug) != "" {
+			updated.OrgSlug = status.Organization.Slug
+		}
+
+		if claimed {
+			updated.Unclaimed = false
+			updated.ClaimToken = ""
+			updated.ClaimURL = ""
+			if status.User != nil && strings.TrimSpace(status.User.ID) != "" {
+				updated.UserID = status.User.ID
+				updated.UserName = status.User.Name
+				updated.UserEmail = status.User.Email
+			}
 		}
 	}
 
-	_ = store.UpsertProfile(updated, false)
+	updated := *profile.Clone()
+	apply(&updated)
+	_ = store.EditProfile(profileID, apply)
 
 	return updated, claimed
 }

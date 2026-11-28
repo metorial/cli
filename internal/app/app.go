@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -14,6 +15,12 @@ import (
 	"github.com/metorial/cli/internal/config"
 	"github.com/metorial/cli/internal/terminal"
 )
+
+const expiryMargin = 30 * time.Second
+
+func fresh(profile *config.Profile) bool {
+	return !profile.Expired(time.Now().UTC().Add(expiryMargin))
+}
 
 type App struct {
 	Stdin  io.Reader
@@ -133,6 +140,10 @@ func (a *App) ResolveAuthConfig(apiKeyFlag, apiHostFlag, profileFlag string) (co
 		}, nil
 	}
 
+	if err := checkProfileHost(profile, apiHostURL); err != nil {
+		return config.Runtime{}, err
+	}
+
 	runtime := config.Runtime{
 		APIKey:      profile.AccessToken,
 		APIHost:     apiHostURL.String(),
@@ -145,7 +156,7 @@ func (a *App) ResolveAuthConfig(apiKeyFlag, apiHostFlag, profileFlag string) (co
 		return a.refreshProfileRuntime(apiHostFlag, profile.ID, force)
 	}
 
-	if profile.Expired(time.Now().UTC().Add(30 * time.Second)) {
+	if !fresh(profile) {
 		return runtime.Refresh(true)
 	}
 
@@ -185,8 +196,11 @@ func (a *App) refreshProfileRuntime(apiHostFlag, profileID string, force bool) (
 	if err != nil {
 		return config.Runtime{}, err
 	}
+	if err := checkProfileHost(profile, apiHostURL); err != nil {
+		return config.Runtime{}, err
+	}
 
-	if !force && !profile.Expired(time.Now().UTC().Add(30*time.Second)) {
+	profileRuntime := func(profile *config.Profile) config.Runtime {
 		runtime := config.Runtime{
 			APIKey:      profile.AccessToken,
 			APIHost:     apiHostURL.String(),
@@ -197,7 +211,28 @@ func (a *App) refreshProfileRuntime(apiHostFlag, profileID string, force bool) (
 		runtime.Refresh = func(force bool) (config.Runtime, error) {
 			return a.refreshProfileRuntime(apiHostFlag, profile.ID, force)
 		}
-		return runtime, nil
+		return runtime
+	}
+
+	if !force && fresh(profile) {
+		return profileRuntime(profile), nil
+	}
+
+	unlock, err := config.LockRefresh(profile.ID)
+	if err != nil {
+		return config.Runtime{}, fmt.Errorf("metorial: failed to refresh the current profile %s: %w", profile.ID, err)
+	}
+	defer unlock()
+
+	latest, ok, err := reloadProfile(store, profileID)
+	if err != nil {
+		return config.Runtime{}, err
+	}
+	if ok {
+		if latest.AccessToken != profile.AccessToken && fresh(latest) {
+			return profileRuntime(latest), nil
+		}
+		profile = latest
 	}
 
 	if strings.TrimSpace(profile.RefreshToken) == "" || strings.TrimSpace(profile.ClientID) == "" {
@@ -213,6 +248,9 @@ func (a *App) refreshProfileRuntime(apiHostFlag, profileID string, force bool) (
 		if errors.As(err, &apiError) {
 			switch apiError.ErrorCode {
 			case "invalid_grant":
+				if latest, ok, _ := reloadProfile(store, profileID); ok && latest.RefreshToken != profile.RefreshToken {
+					return profileRuntime(latest), nil
+				}
 				return config.Runtime{}, fmt.Errorf(
 					"metorial: the current profile %s has expired or was revoked.\nRun \"metorial login\" to sign in again or \"metorial profiles list\" to switch profiles",
 					profile.ID,
@@ -231,6 +269,34 @@ func (a *App) refreshProfileRuntime(apiHostFlag, profileID string, force bool) (
 	}
 
 	now := time.Now().UTC()
+	applyRefresh(profile, response, now)
+	err = store.EditProfile(profile.ID, func(stored *config.Profile) {
+		applyRefresh(stored, response, now)
+		stored.RefreshToken = profile.RefreshToken
+		stored.ExpiresAt = profile.ExpiresAt
+	})
+	if err != nil {
+		if errors.Is(err, config.ErrProfileNotFound) {
+			return config.Runtime{}, fmt.Errorf(
+				"metorial: the profile %s was signed out on this computer.\nRun \"metorial login\" to sign in again",
+				profile.ID,
+			)
+		}
+		return config.Runtime{}, err
+	}
+
+	return profileRuntime(profile), nil
+}
+
+func reloadProfile(store *config.Store, profileID string) (*config.Profile, bool, error) {
+	if err := store.Reload(); err != nil {
+		return nil, false, err
+	}
+	profile, ok := store.ProfileByID(profileID)
+	return profile, ok, nil
+}
+
+func applyRefresh(profile *config.Profile, response *auth.TokenResponse, now time.Time) {
 	profile.AccessToken = response.AccessToken
 	if strings.TrimSpace(response.RefreshToken) != "" {
 		profile.RefreshToken = response.RefreshToken
@@ -265,23 +331,32 @@ func (a *App) refreshProfileRuntime(apiHostFlag, profileID string, force bool) (
 	if response.Instance != nil && strings.TrimSpace(response.Instance.ID) != "" {
 		profile.InstanceID = response.Instance.ID
 	}
+}
 
-	if err := store.UpsertProfile(*profile, true); err != nil {
-		return config.Runtime{}, err
+// A profile's tokens only ever go to the host that issued them.
+func checkProfileHost(profile *config.Profile, apiHostURL *url.URL) error {
+	stored := strings.TrimSpace(profile.APIHost)
+	if stored == "" {
+		return nil
 	}
-
-	runtime := config.Runtime{
-		APIKey:      profile.AccessToken,
-		APIHost:     apiHostURL.String(),
-		APIHostURL:  apiHostURL,
-		PlatformURL: platformURL,
-		Profile:     profile,
+	storedURL, err := config.NormalizeBaseURL(stored)
+	if err != nil {
+		return fmt.Errorf(
+			"metorial: the profile %s has an invalid API host %q.\nRun \"metorial login\" to sign in again, or pass --api-key",
+			profile.ID,
+			stored,
+		)
 	}
-	runtime.Refresh = func(force bool) (config.Runtime, error) {
-		return a.refreshProfileRuntime(apiHostFlag, profile.ID, force)
+	if config.SameServer(storedURL, apiHostURL) {
+		return nil
 	}
-
-	return runtime, nil
+	return fmt.Errorf(
+		"metorial: the profile %s is signed in to %s, not %s.\nRun \"metorial login --api-host %s\" to sign in there, or pass --api-key",
+		profile.ID,
+		storedURL,
+		apiHostURL,
+		apiHostURL,
+	)
 }
 
 func (a *App) resolveInstance(runtime config.Runtime, instanceFlag string) (config.Runtime, error) {

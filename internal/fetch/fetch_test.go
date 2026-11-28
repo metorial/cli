@@ -14,26 +14,32 @@ import (
 func TestResolveURL(t *testing.T) {
 	t.Parallel()
 
-	apiHost, err := url.Parse("https://api.metorial.com")
-	if err != nil {
-		t.Fatalf("url.Parse() error = %v", err)
-	}
-
 	tests := []struct {
 		name    string
+		host    string
 		target  string
 		want    string
 		wantErr bool
 	}{
-		{name: "path", target: "/provider-listings", want: "https://api.metorial.com/provider-listings"},
-		{name: "path without slash", target: "provider-listings", want: "https://api.metorial.com/provider-listings"},
-		{name: "matching full url", target: "https://api.metorial.com/provider-listings", want: "https://api.metorial.com/provider-listings"},
-		{name: "mismatched host", target: "https://example.com/provider-listings", wantErr: true},
+		{name: "path", host: "https://api.metorial.com", target: "/provider-listings", want: "https://api.metorial.com/provider-listings"},
+		{name: "path without slash", host: "https://api.metorial.com", target: "provider-listings", want: "https://api.metorial.com/provider-listings"},
+		{name: "matching full url", host: "https://api.metorial.com", target: "https://api.metorial.com/provider-listings", want: "https://api.metorial.com/provider-listings"},
+		{name: "mismatched host", host: "https://api.metorial.com", target: "https://example.com/provider-listings", wantErr: true},
+		{name: "base path", host: "https://metorial.acme.com/v1", target: "/provider-listings", want: "https://metorial.acme.com/v1/provider-listings"},
+		{name: "base path with query", host: "https://metorial.acme.com/v1", target: "/provider-listings?limit=5&cursor=a%2Fb", want: "https://metorial.acme.com/v1/provider-listings?limit=5&cursor=a%2Fb"},
+		{name: "base path with escaped segment", host: "https://metorial.acme.com/v1", target: "/files/a%2Fb", want: "https://metorial.acme.com/v1/files/a%2Fb"},
+		{name: "base path matching full url", host: "https://metorial.acme.com/v1", target: "https://metorial.acme.com/v1/provider-listings", want: "https://metorial.acme.com/v1/provider-listings"},
+		{name: "base path full url with another scheme", host: "https://metorial.acme.com/v1", target: "http://metorial.acme.com/v1/provider-listings", wantErr: true},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
+			apiHost, err := config.NormalizeBaseURL(tt.host)
+			if err != nil {
+				t.Fatalf("NormalizeBaseURL() error = %v", err)
+			}
 
 			got, err := ResolveURL(apiHost, tt.target)
 			if tt.wantErr {
